@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
+import json
 
 import fitz
 
@@ -105,6 +106,9 @@ class GradingResult:
     unanswered_questions: List[int] = field(default_factory=list)
     skipped_questions: List[int] = field(default_factory=list)
     auto_swapped_files: bool = False
+    wrong_items: List[Dict[str, object]] = field(default_factory=list)
+    unanswered_items: List[Dict[str, object]] = field(default_factory=list)
+    knowledge_report_file: str = ""
 
 
 @dataclass
@@ -782,6 +786,170 @@ def build_wrong_questions_docx(
     document.save(output_file)
 
 
+def _extract_text_from_docx(file_path: Path) -> str:
+    docx_module = importlib.import_module("docx")
+    document = docx_module.Document(file_path)
+    lines = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
+    return "\n".join(lines)
+
+
+def _extract_text_from_pptx(file_path: Path) -> str:
+    pptx_module = importlib.import_module("pptx")
+    presentation = pptx_module.Presentation(str(file_path))
+    chunks: List[str] = []
+    for slide in presentation.slides:
+        for shape in slide.shapes:
+            text = getattr(shape, "text", "")
+            if text and text.strip():
+                chunks.append(text.strip())
+    return "\n".join(chunks)
+
+
+def _extract_text_from_pdf(file_path: Path) -> str:
+    document = fitz.open(file_path)
+    page_texts: List[str] = []
+    try:
+        for page in document:
+            text = page.get_text("text")
+            if text and text.strip():
+                page_texts.append(text.strip())
+    finally:
+        document.close()
+    return "\n\n".join(page_texts)
+
+
+def extract_text_from_knowledge_file(file_path: Path) -> str:
+    suffix = file_path.suffix.lower()
+    if suffix == ".pdf":
+        return _extract_text_from_pdf(file_path)
+    if suffix == ".docx":
+        return _extract_text_from_docx(file_path)
+    if suffix == ".pptx":
+        return _extract_text_from_pptx(file_path)
+    if suffix in {".txt", ".md"}:
+        return file_path.read_text(encoding="utf-8", errors="ignore")
+    raise ValueError(f"Định dạng file kiến thức chưa hỗ trợ: {file_path.name}")
+
+
+def _trim_text(text: str, max_chars: int) -> str:
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[:max_chars] + " ..."
+
+
+def _build_knowledge_prompt(
+    grading_result: GradingResult,
+    knowledge_context: str,
+) -> str:
+    mistakes_payload = {
+        "wrong_questions": [
+            {
+                "index": item.get("index"),
+                "question": item.get("question_text"),
+                "selected": item.get("selected_labels"),
+                "correct": item.get("correct_label"),
+            }
+            for item in grading_result.wrong_items
+        ],
+        "unanswered_questions": [
+            {
+                "index": item.get("index"),
+                "question": item.get("question_text"),
+                "correct": item.get("correct_label"),
+            }
+            for item in grading_result.unanswered_items
+        ],
+        "score_summary": {
+            "compared_questions": grading_result.compared_questions,
+            "correct_count": grading_result.correct_count,
+            "wrong_count": grading_result.wrong_count,
+            "unanswered_count": grading_result.unanswered_count,
+        },
+    }
+
+    mistakes_json = json.dumps(mistakes_payload, ensure_ascii=False, indent=2)
+
+    return (
+        "Bạn là trợ lý học tập tiếng Việt. Dựa trên dữ liệu câu sai/chưa làm và tài liệu kiến thức, "
+        "hãy phân tích lý do sai và chỉ ra lỗ hổng kiến thức.\n"
+        "Yêu cầu đầu ra: ngắn gọn, rõ ràng, có tiêu đề và gạch đầu dòng.\n"
+        "BẮT BUỘC có đủ các phần sau:\n"
+        "1) Đánh giá tổng quan kết quả.\n"
+        "2) Phân tích từng câu sai/chưa làm (nêu vì sao sai, kiến thức nào bị hổng).\n"
+        "3) Điểm mạnh (chủ đề làm tốt).\n"
+        "4) Điểm yếu/lỗ hổng kiến thức (gom theo chủ đề).\n"
+        "5) Kế hoạch học thêm đề xuất (ưu tiên theo mức độ quan trọng).\n\n"
+        "Dữ liệu chấm bài:\n"
+        f"{mistakes_json}\n\n"
+        "Tài liệu kiến thức tham chiếu:\n"
+        f"{knowledge_context}\n"
+    )
+
+
+def _call_ollama_generate(prompt: str, model: str, ollama_url: str) -> str:
+    requests_module = importlib.import_module("requests")
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": 0.2,
+        },
+    }
+    response = requests_module.post(ollama_url, json=payload, timeout=120)
+    response.raise_for_status()
+    data = response.json()
+    text = str(data.get("response", "")).strip()
+    if not text:
+        raise RuntimeError("Ollama không trả về nội dung phân tích.")
+    return text
+
+
+def build_knowledge_gap_report(
+    grading_result: GradingResult,
+    knowledge_files: List[Path],
+    output_dir: Path,
+    model: str = "llama3.1:8b",
+    ollama_url: str = "http://127.0.0.1:11434/api/generate",
+) -> Path:
+    if not knowledge_files:
+        raise ValueError("Chưa có file kiến thức để phân tích.")
+
+    context_parts: List[str] = []
+    for file_path in knowledge_files:
+        if not file_path.exists() or not file_path.is_file():
+            continue
+        extracted = extract_text_from_knowledge_file(file_path)
+        if not extracted.strip():
+            continue
+        context_parts.append(f"[Nguồn: {file_path.name}]\n{_trim_text(extracted, 12000)}")
+
+    if not context_parts:
+        raise ValueError("Không trích xuất được nội dung từ các file kiến thức.")
+
+    joined_context = "\n\n".join(context_parts)
+    prompt = _build_knowledge_prompt(grading_result, _trim_text(joined_context, 35000))
+    analysis = _call_ollama_generate(prompt=prompt, model=model, ollama_url=ollama_url)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    report_file = output_dir / f"{Path(grading_result.submission_file).stem}_phan_tich_kien_thuc.md"
+
+    report_content = (
+        "# PHÂN TÍCH LỖ HỔNG KIẾN THỨC\n\n"
+        f"- Model Ollama: `{model}`\n"
+        f"- Số câu so sánh: {grading_result.compared_questions}\n"
+        f"- Đúng: {grading_result.correct_count}\n"
+        f"- Sai: {grading_result.wrong_count}\n"
+        f"- Chưa làm: {grading_result.unanswered_count}\n\n"
+        "## Nội dung phân tích\n\n"
+        f"{analysis.strip()}\n"
+    )
+
+    report_file.write_text(report_content, encoding="utf-8")
+    return report_file
+
+
 def grade_quiz_files(
     submission_file: Path,
     answer_file: Path,
@@ -918,6 +1086,8 @@ def grade_quiz_files(
         unanswered_questions=unanswered_questions,
         skipped_questions=skipped_questions,
         auto_swapped_files=auto_swapped_files,
+        wrong_items=wrong_items,
+        unanswered_items=unanswered_items,
     )
 
 

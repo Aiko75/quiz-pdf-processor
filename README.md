@@ -21,6 +21,7 @@ Ngoài ra có chức năng kiểm tra đối chiếu tự động giữa file g�
 - Kiểm tra chất lượng output (mismatch, thiếu highlight, highlight sai)
 - Chấm bài tự động từ file bài làm so với file đáp án
 - Xuất file chỉ chứa các câu sai, giữ đáp án tô sai của người làm và bôi đậm đáp án đúng
+- Phân tích lỗ hổng kiến thức bằng Ollama dựa trên câu sai/chưa làm + tài liệu kiến thức người dùng cung cấp
 - Tạo đề trắc nghiệm mới từ ngân hàng câu hỏi bằng số lượng câu tùy chọn
 
 ## Cấu trúc dự án
@@ -59,6 +60,8 @@ Trong app:
 - Bấm `2) Kiểm tra đối chiếu`
 - Chọn `File đáp án (PDF/DOCX)`
 - Chọn `File bài làm đã tô (PDF/DOCX)`
+- (Tuỳ chọn) Chọn thêm `File kiến thức` (hỗ trợ `PDF/DOCX/PPTX/TXT/MD`) để phân tích nguyên nhân sai và lỗ hổng kiến thức
+- (Tuỳ chọn) Nhập tên `Model Ollama` (mặc định: `llama3.1:8b`)
 - Bấm `3) Chấm bài`
 - Kéo thanh ngang hoặc nhập `Số lượng câu tạo đề`, sau đó bấm `4) Tạo đề trắc nghiệm`
 - Dùng nút `Mở` để mở nhanh 4 đường dẫn chính và file kết quả câu lỗi
@@ -78,6 +81,19 @@ File kết quả các câu lỗi có quy tắc:
 - Chia 2 phần: `Các câu chưa làm` và `Các câu làm sai`
 - Ở phần làm sai: giữ nguyên đáp án sai mà người dùng đã tô
 - Ở cả 2 phần: bôi đậm đáp án đúng và tô màu đỏ đáp án đúng để dễ đối chiếu
+
+Nếu đã chọn file kiến thức, app sẽ tạo thêm file Markdown phân tích lỗ hổng kiến thức trong thư mục output (bao gồm: nguyên nhân sai, điểm mạnh/yếu, và gợi ý học thêm).
+
+## Dùng Ollama cho phần phân tích lỗ hổng
+
+Ví dụ chạy local:
+
+```bash
+ollama serve
+ollama pull llama3.1:8b
+```
+
+App sẽ gọi API mặc định tại `http://127.0.0.1:11434/api/generate`.
 
 ## Tạo đề trắc nghiệm
 
