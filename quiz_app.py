@@ -20,6 +20,7 @@ class QuizProcessorApp:
         self.root = root
         self.root.title("Quiz PDF Processor")
         self.root.geometry("1060x690")
+        self._apply_window_icon()
 
         self.workspace_dir = self.resolve_workspace_dir()
         input_default = self.workspace_dir / "files"
@@ -37,6 +38,14 @@ class QuizProcessorApp:
         self.quiz_count_var = tk.IntVar(value=40)
 
         self._build_ui()
+
+    def _apply_window_icon(self) -> None:
+        icon_path = Path(__file__).resolve().parent / "assets" / "quiz_app.ico"
+        if icon_path.exists():
+            try:
+                self.root.iconbitmap(str(icon_path))
+            except Exception:
+                pass
 
     def resolve_workspace_dir(self) -> Path:
         if getattr(sys, "frozen", False):
