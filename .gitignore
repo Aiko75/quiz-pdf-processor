@@ -9,3 +9,6 @@ build/
 venv/
 
 *.log
+
+dist/
+quiz_workspace

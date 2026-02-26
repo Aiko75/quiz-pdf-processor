@@ -1,22 +1,41 @@
+import os
 from pathlib import Path
+import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-from quiz_pdf_processor import process_folder, validate_folder
+from quiz_pdf_processor import generate_quiz_from_file, grade_quiz_files, process_folder, validate_folder
 
 
 class QuizProcessorApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Quiz PDF Processor")
-        self.root.geometry("900x620")
+        self.root.geometry("1060x690")
 
-        self.input_var = tk.StringVar(value=str((Path(__file__).parent / "files").resolve()))
-        self.output_var = tk.StringVar(value=str((Path(__file__).parent / "processed_quiz").resolve()))
+        self.workspace_dir = self.resolve_workspace_dir()
+        input_default = self.workspace_dir / "files"
+        output_default = self.workspace_dir / "processed_quiz"
+        input_default.mkdir(parents=True, exist_ok=True)
+        output_default.mkdir(parents=True, exist_ok=True)
+
+        self.input_var = tk.StringVar(value=str(input_default.resolve()))
+        self.output_var = tk.StringVar(value=str(output_default.resolve()))
+        self.answer_file_var = tk.StringVar()
+        self.submission_file_var = tk.StringVar()
+        self.error_file_var = tk.StringVar()
+        self.quiz_count_var = tk.IntVar(value=40)
 
         self._build_ui()
+
+    def resolve_workspace_dir(self) -> Path:
+        if getattr(sys, "frozen", False):
+            base_dir = Path(sys.executable).resolve().parent
+        else:
+            base_dir = Path(__file__).resolve().parent
+        return (base_dir / "quiz_workspace").resolve()
 
     def _build_ui(self) -> None:
         container = ttk.Frame(self.root, padding=12)
@@ -27,15 +46,54 @@ class QuizProcessorApp:
             row=1, column=0, sticky="we", padx=(0, 8)
         )
         ttk.Button(container, text="Chọn...", command=self.pick_input).grid(row=1, column=1)
+        ttk.Button(container, text="Mở", command=self.open_input_dir).grid(row=1, column=2)
 
         ttk.Label(container, text="Thư mục output:").grid(row=2, column=0, sticky="w", pady=(10, 0))
         ttk.Entry(container, textvariable=self.output_var, width=90).grid(
             row=3, column=0, sticky="we", padx=(0, 8)
         )
         ttk.Button(container, text="Chọn...", command=self.pick_output).grid(row=3, column=1)
+        ttk.Button(container, text="Mở", command=self.open_output_dir).grid(row=3, column=2)
+
+        ttk.Label(container, text="File đáp án (PDF/DOCX):").grid(row=4, column=0, sticky="w", pady=(10, 0))
+        ttk.Entry(container, textvariable=self.answer_file_var, width=90).grid(
+            row=5, column=0, sticky="we", padx=(0, 8)
+        )
+        ttk.Button(container, text="Chọn...", command=self.pick_answer_file).grid(row=5, column=1)
+        ttk.Button(container, text="Mở", command=self.open_answer_file).grid(row=5, column=2)
+
+        ttk.Label(container, text="File bài làm đã tô (PDF/DOCX):").grid(
+            row=6, column=0, sticky="w", pady=(10, 0)
+        )
+        ttk.Entry(container, textvariable=self.submission_file_var, width=90).grid(
+            row=7, column=0, sticky="we", padx=(0, 8)
+        )
+        ttk.Button(container, text="Chọn...", command=self.pick_submission_file).grid(row=7, column=1)
+        ttk.Button(container, text="Mở", command=self.open_submission_file).grid(row=7, column=2)
+
+        ttk.Label(container, text="File các câu lỗi:").grid(row=8, column=0, sticky="w", pady=(10, 0))
+        ttk.Entry(container, textvariable=self.error_file_var, width=90).grid(
+            row=9, column=0, sticky="we", padx=(0, 8)
+        )
+        ttk.Button(container, text="Mở", command=self.open_error_file).grid(row=9, column=2)
+
+        count_frame = ttk.Frame(container)
+        count_frame.grid(row=10, column=0, columnspan=3, sticky="we", pady=(10, 0))
+        ttk.Label(count_frame, text="Số lượng câu tạo đề:").pack(side=tk.LEFT)
+        self.quiz_count_scale = tk.Scale(
+            count_frame,
+            from_=1,
+            to=300,
+            orient=tk.HORIZONTAL,
+            length=320,
+            variable=self.quiz_count_var,
+            showvalue=False,
+        )
+        self.quiz_count_scale.pack(side=tk.LEFT, padx=(8, 8))
+        ttk.Entry(count_frame, textvariable=self.quiz_count_var, width=8).pack(side=tk.LEFT)
 
         action_frame = ttk.Frame(container)
-        action_frame.grid(row=4, column=0, columnspan=2, sticky="w", pady=(12, 8))
+        action_frame.grid(row=11, column=0, columnspan=3, sticky="w", pady=(12, 8))
 
         self.process_button = ttk.Button(
             action_frame, text="1) Xử lý PDF -> DOCX", command=self.start_process
@@ -47,12 +105,56 @@ class QuizProcessorApp:
         )
         self.validate_button.pack(side=tk.LEFT)
 
-        ttk.Label(container, text="Log:").grid(row=5, column=0, sticky="w")
+        self.grade_button = ttk.Button(
+            action_frame, text="3) Chấm bài", command=self.start_grade
+        )
+        self.grade_button.pack(side=tk.LEFT, padx=(8, 0))
+
+        self.generate_button = ttk.Button(
+            action_frame, text="4) Tạo đề trắc nghiệm", command=self.start_generate
+        )
+        self.generate_button.pack(side=tk.LEFT, padx=(8, 0))
+
+        self.open_output_button = ttk.Button(
+            action_frame, text="Mở output", command=self.open_output_dir
+        )
+        self.open_output_button.pack(side=tk.LEFT, padx=(8, 0))
+
+        ttk.Label(container, text="Log:").grid(row=12, column=0, sticky="w")
         self.log_text = ScrolledText(container, height=24, wrap=tk.WORD)
-        self.log_text.grid(row=6, column=0, columnspan=2, sticky="nsew")
+        self.log_text.grid(row=13, column=0, columnspan=3, sticky="nsew")
 
         container.columnconfigure(0, weight=1)
-        container.rowconfigure(6, weight=1)
+        container.rowconfigure(13, weight=1)
+
+    def open_path(self, path_text: str, expect_directory: bool) -> None:
+        path = Path(path_text.strip()) if path_text.strip() else None
+        if path is None or not path.exists():
+            messagebox.showerror("Lỗi", "Đường dẫn không tồn tại.")
+            return
+        if expect_directory and not path.is_dir():
+            messagebox.showerror("Lỗi", "Đường dẫn phải là thư mục.")
+            return
+        if not expect_directory and not path.is_file():
+            messagebox.showerror("Lỗi", "Đường dẫn phải là file.")
+            return
+
+        os.startfile(str(path))
+
+    def open_input_dir(self) -> None:
+        self.open_path(self.input_var.get(), expect_directory=True)
+
+    def open_output_dir(self) -> None:
+        self.open_path(self.output_var.get(), expect_directory=True)
+
+    def open_answer_file(self) -> None:
+        self.open_path(self.answer_file_var.get(), expect_directory=False)
+
+    def open_submission_file(self) -> None:
+        self.open_path(self.submission_file_var.get(), expect_directory=False)
+
+    def open_error_file(self) -> None:
+        self.open_path(self.error_file_var.get(), expect_directory=False)
 
     def pick_input(self) -> None:
         selected = filedialog.askdirectory(initialdir=self.input_var.get() or ".")
@@ -64,6 +166,22 @@ class QuizProcessorApp:
         if selected:
             self.output_var.set(selected)
 
+    def pick_answer_file(self) -> None:
+        selected = filedialog.askopenfilename(
+            title="Chọn file đáp án",
+            filetypes=[("Quiz file", "*.pdf *.docx"), ("All files", "*.*")],
+        )
+        if selected:
+            self.answer_file_var.set(selected)
+
+    def pick_submission_file(self) -> None:
+        selected = filedialog.askopenfilename(
+            title="Chọn file bài làm",
+            filetypes=[("Quiz file", "*.pdf *.docx"), ("All files", "*.*")],
+        )
+        if selected:
+            self.submission_file_var.set(selected)
+
     def log(self, message: str) -> None:
         self.log_text.insert(tk.END, message + "\n")
         self.log_text.see(tk.END)
@@ -73,12 +191,74 @@ class QuizProcessorApp:
         state = tk.DISABLED if running else tk.NORMAL
         self.process_button.configure(state=state)
         self.validate_button.configure(state=state)
+        self.grade_button.configure(state=state)
+        self.generate_button.configure(state=state)
+        self.open_output_button.configure(state=state)
 
     def start_process(self) -> None:
         self.run_background(self.process_action)
 
     def start_validate(self) -> None:
         self.run_background(self.validate_action)
+
+    def start_grade(self) -> None:
+        self.error_file_var.set("")
+        answer_file = Path(self.answer_file_var.get().strip()) if self.answer_file_var.get().strip() else None
+        submission_file = (
+            Path(self.submission_file_var.get().strip())
+            if self.submission_file_var.get().strip()
+            else None
+        )
+        output_dir = Path(self.output_var.get().strip())
+
+        if answer_file is None or not answer_file.exists() or not answer_file.is_file():
+            messagebox.showerror("Lỗi", "File đáp án không hợp lệ.")
+            return
+        if submission_file is None or not submission_file.exists() or not submission_file.is_file():
+            messagebox.showerror("Lỗi", "File bài làm không hợp lệ.")
+            return
+
+        self.set_running(True)
+
+        def worker() -> None:
+            try:
+                self.grade_action(submission_file, answer_file, output_dir)
+            except Exception as error:
+                self.root.after(0, lambda: messagebox.showerror("Lỗi", str(error)))
+            finally:
+                self.root.after(0, lambda: self.set_running(False))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def start_generate(self) -> None:
+        answer_file = Path(self.answer_file_var.get().strip()) if self.answer_file_var.get().strip() else None
+        output_dir = Path(self.output_var.get().strip())
+
+        if answer_file is None or not answer_file.exists() or not answer_file.is_file():
+            messagebox.showerror("Lỗi", "Chọn file đáp án hợp lệ để tạo đề.")
+            return
+
+        try:
+            requested_count = int(self.quiz_count_var.get())
+        except (TypeError, ValueError):
+            messagebox.showerror("Lỗi", "Số lượng câu không hợp lệ.")
+            return
+
+        if requested_count <= 0:
+            messagebox.showerror("Lỗi", "Số lượng câu phải lớn hơn 0.")
+            return
+
+        self.set_running(True)
+
+        def worker() -> None:
+            try:
+                self.generate_action(answer_file, output_dir, requested_count)
+            except Exception as error:
+                self.root.after(0, lambda: messagebox.showerror("Lỗi", str(error)))
+            finally:
+                self.root.after(0, lambda: self.set_running(False))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def run_background(self, action) -> None:
         input_dir = Path(self.input_var.get().strip())
@@ -159,6 +339,84 @@ class QuizProcessorApp:
             )
 
         self.root.after(0, lambda: self.log("\n=== HOÀN TẤT KIỂM TRA ===\n"))
+
+    def grade_action(self, submission_file: Path, answer_file: Path, output_dir: Path) -> None:
+        def format_question_list(items) -> str:
+            if not items:
+                return "Không có"
+            text = ", ".join(str(value) for value in items)
+            if len(text) > 280:
+                return text[:280] + " ..."
+            return text
+
+        self.root.after(0, lambda: self.log("=== BẮT ĐẦU CHẤM BÀI ==="))
+        self.root.after(0, lambda: self.log(f"Bài làm: {submission_file}"))
+        self.root.after(0, lambda: self.log(f"Đáp án: {answer_file}"))
+
+        result = grade_quiz_files(
+            submission_file=submission_file,
+            answer_file=answer_file,
+            output_dir=output_dir,
+        )
+
+        self.root.after(0, lambda: self.log(f"Số câu so sánh: {result.compared_questions}"))
+        self.root.after(0, lambda: self.log(f"Số câu đã làm (đúng + sai): {result.answered_count}"))
+        self.root.after(0, lambda: self.log(f"Số câu đúng: {result.correct_count}"))
+        self.root.after(
+            0,
+            lambda: self.log(f"Danh sách câu đúng: {format_question_list(result.correct_questions)}"),
+        )
+        self.root.after(0, lambda: self.log(f"Số câu sai: {result.wrong_count}"))
+        self.root.after(
+            0,
+            lambda: self.log(f"Danh sách câu sai: {format_question_list(result.wrong_questions)}"),
+        )
+        self.root.after(0, lambda: self.log(f"Số câu chưa làm: {result.unanswered_count}"))
+        self.root.after(
+            0,
+            lambda: self.log(
+                f"Danh sách câu chưa làm: {format_question_list(result.unanswered_questions)}"
+            ),
+        )
+        if result.auto_swapped_files:
+            self.root.after(
+                0,
+                lambda: self.log(
+                    "[LƯU Ý] Đã tự động đổi vai trò 2 file vì phát hiện bạn chọn nhầm file đáp án/bài làm."
+                ),
+            )
+        self.root.after(
+            0,
+            lambda: self.log(
+                "Số câu bỏ qua (file đáp án không xác định được đúng 1 đáp án): "
+                f"{result.skipped_count}"
+            ),
+        )
+        self.root.after(
+            0,
+            lambda: self.log(f"Danh sách câu bỏ qua: {format_question_list(result.skipped_questions)}"),
+        )
+        self.root.after(
+            0,
+            lambda: self.log(f"File các câu lỗi (chưa làm + sai): {result.wrong_output_file}"),
+        )
+        self.root.after(0, lambda: self.error_file_var.set(result.wrong_output_file))
+        self.root.after(0, lambda: self.log("=== HOÀN TẤT CHẤM BÀI ===\n"))
+
+    def generate_action(self, answer_file: Path, output_dir: Path, requested_count: int) -> None:
+        self.root.after(0, lambda: self.log("=== BẮT ĐẦU TẠO ĐỀ TRẮC NGHIỆM ==="))
+        self.root.after(0, lambda: self.log(f"File nguồn: {answer_file}"))
+        self.root.after(0, lambda: self.log(f"Số câu yêu cầu: {requested_count}"))
+
+        result = generate_quiz_from_file(
+            source_file=answer_file,
+            output_dir=output_dir,
+            question_count=requested_count,
+        )
+
+        self.root.after(0, lambda: self.log(f"Số câu tạo thực tế: {result.generated_count}"))
+        self.root.after(0, lambda: self.log(f"File đề tạo mới: {result.quiz_output_file}"))
+        self.root.after(0, lambda: self.log("=== HOÀN TẤT TẠO ĐỀ ===\n"))
 
 
 def main() -> None:

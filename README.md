@@ -6,6 +6,7 @@
 - Bản để làm (đồng nhất font, không lộ đáp án)
 
 Ngoài ra có chức năng kiểm tra đối chiếu tự động giữa file gốc và file output.
+Ứng dụng cũng hỗ trợ chấm bài từ file bài làm đã tô đáp án.
 
 ## Tính năng chính
 
@@ -18,6 +19,9 @@ Ngoài ra có chức năng kiểm tra đối chiếu tự động giữa file g�
 - Sửa một phần lỗi ký tự bị tách rời
 - Xuất DOCX cho cả 2 phiên bản
 - Kiểm tra chất lượng output (mismatch, thiếu highlight, highlight sai)
+- Chấm bài tự động từ file bài làm so với file đáp án
+- Xuất file chỉ chứa các câu sai, giữ đáp án tô sai của người làm và bôi đậm đáp án đúng
+- Tạo đề trắc nghiệm mới từ ngân hàng câu hỏi bằng số lượng câu tùy chọn
 
 ## Cấu trúc dự án
 
@@ -46,16 +50,59 @@ python quiz_app.py
 
 Trong app:
 
+- App tự tạo thư mục làm việc cố định `quiz_workspace` ngay cạnh file chạy app (không dùng thư mục Temp):
+  - `quiz_workspace/files`
+  - `quiz_workspace/processed_quiz`
 - Chọn thư mục input PDF
 - Chọn thư mục output
 - Bấm `1) Xử lý PDF -> DOCX`
 - Bấm `2) Kiểm tra đối chiếu`
+- Chọn `File đáp án (PDF/DOCX)`
+- Chọn `File bài làm đã tô (PDF/DOCX)`
+- Bấm `3) Chấm bài`
+- Kéo thanh ngang hoặc nhập `Số lượng câu tạo đề`, sau đó bấm `4) Tạo đề trắc nghiệm`
+- Dùng nút `Mở` để mở nhanh 4 đường dẫn chính và file kết quả câu lỗi
+
+Sau khi chấm bài, log sẽ hiển thị:
+
+- Số câu đúng
+- Số câu sai
+- Số câu chưa làm
+- Số câu bỏ qua (khi file đáp án không xác định rõ 1 đáp án đúng)
+- Đường dẫn file DOCX chứa các câu lỗi
+
+Nếu chọn nhầm 2 file (đáp án/bài làm), app sẽ tự phát hiện trong nhiều trường hợp và hiển thị thông báo đã tự đổi vai trò file.
+
+File kết quả các câu lỗi có quy tắc:
+
+- Chia 2 phần: `Các câu chưa làm` và `Các câu làm sai`
+- Ở phần làm sai: giữ nguyên đáp án sai mà người dùng đã tô
+- Ở cả 2 phần: bôi đậm đáp án đúng và tô màu đỏ đáp án đúng để dễ đối chiếu
+
+## Tạo đề trắc nghiệm
+
+- Chọn file nguồn ở ô `File đáp án (PDF/DOCX)`
+- Chọn số câu bằng thanh kéo ngang hoặc nhập trực tiếp
+- Bấm `4) Tạo đề trắc nghiệm`
+- App tạo file DOCX mới trong thư mục output với tên dạng: `*_de_trac_nghiem_<N>_cau.docx`
 
 ### 2) Dùng script CLI
 
 ```bash
 python quiz_pdf_processor.py --input files --output processed_quiz
+
+# Chấm bài (bài làm vs đáp án)
+python quiz_pdf_processor.py --grade-submission files/bai_lam.pdf --grade-answer files/dap_an.pdf --output processed_quiz
 ```
+
+Với chế độ chấm bài, script sẽ in ra:
+
+- Số câu so sánh
+- Số câu đúng
+- Số câu sai
+- Số câu chưa làm
+- Số câu bỏ qua
+- Đường dẫn file DOCX chứa các câu lỗi
 
 ## Kiểm tra output (validate)
 
