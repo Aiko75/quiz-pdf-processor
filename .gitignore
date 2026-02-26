@@ -10,5 +10,5 @@ venv/
 
 *.log
 
-dist/quiz_workspace
+dist/
 quiz_workspace
