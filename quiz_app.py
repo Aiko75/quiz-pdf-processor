@@ -8,6 +8,7 @@ from tkinter.scrolledtext import ScrolledText
 
 from quiz_pdf_processor import (
     build_knowledge_gap_report,
+    build_wrong_questions_docx,
     generate_quiz_from_file,
     grade_quiz_files,
     process_folder,
@@ -34,6 +35,7 @@ class QuizProcessorApp:
         self.submission_file_var = tk.StringVar()
         self.knowledge_files_var = tk.StringVar()
         self.ollama_model_var = tk.StringVar(value="llama3.1:8b")
+        self.embedding_model_var = tk.StringVar(value="nomic-embed-text")
         self.error_file_var = tk.StringVar()
         self.quiz_count_var = tk.IntVar(value=40)
 
@@ -104,14 +106,21 @@ class QuizProcessorApp:
             row=11, column=0, sticky="w"
         )
 
-        ttk.Label(container, text="File các câu lỗi:").grid(row=12, column=0, sticky="w", pady=(10, 0))
-        ttk.Entry(container, textvariable=self.error_file_var, width=90).grid(
-            row=13, column=0, sticky="we", padx=(0, 8)
+        ttk.Label(container, text="Model Embedding cho RAG (tạm không dùng):").grid(
+            row=12, column=0, sticky="w", pady=(10, 0)
         )
-        ttk.Button(container, text="Mở", command=self.open_error_file).grid(row=13, column=2)
+        ttk.Entry(container, textvariable=self.embedding_model_var, width=40).grid(
+            row=13, column=0, sticky="w"
+        )
+
+        ttk.Label(container, text="File các câu lỗi:").grid(row=14, column=0, sticky="w", pady=(10, 0))
+        ttk.Entry(container, textvariable=self.error_file_var, width=90).grid(
+            row=15, column=0, sticky="we", padx=(0, 8)
+        )
+        ttk.Button(container, text="Mở", command=self.open_error_file).grid(row=15, column=2)
 
         count_frame = ttk.Frame(container)
-        count_frame.grid(row=14, column=0, columnspan=3, sticky="we", pady=(10, 0))
+        count_frame.grid(row=16, column=0, columnspan=3, sticky="we", pady=(10, 0))
         ttk.Label(count_frame, text="Số lượng câu tạo đề:").pack(side=tk.LEFT)
         self.quiz_count_scale = tk.Scale(
             count_frame,
@@ -126,7 +135,7 @@ class QuizProcessorApp:
         ttk.Entry(count_frame, textvariable=self.quiz_count_var, width=8).pack(side=tk.LEFT)
 
         action_frame = ttk.Frame(container)
-        action_frame.grid(row=15, column=0, columnspan=3, sticky="w", pady=(12, 8))
+        action_frame.grid(row=17, column=0, columnspan=3, sticky="w", pady=(12, 8))
 
         self.process_button = ttk.Button(
             action_frame, text="1) Xử lý PDF -> DOCX", command=self.start_process
@@ -153,12 +162,12 @@ class QuizProcessorApp:
         )
         self.open_output_button.pack(side=tk.LEFT, padx=(8, 0))
 
-        ttk.Label(container, text="Log:").grid(row=16, column=0, sticky="w")
+        ttk.Label(container, text="Log:").grid(row=18, column=0, sticky="w")
         self.log_text = ScrolledText(container, height=24, wrap=tk.WORD)
-        self.log_text.grid(row=17, column=0, columnspan=3, sticky="nsew")
+        self.log_text.grid(row=19, column=0, columnspan=3, sticky="nsew")
 
         container.columnconfigure(0, weight=1)
-        container.rowconfigure(17, weight=1)
+        container.rowconfigure(19, weight=1)
 
     def open_path(self, path_text: str, expect_directory: bool) -> None:
         path = Path(path_text.strip()) if path_text.strip() else None
@@ -267,7 +276,6 @@ class QuizProcessorApp:
             else None
         )
         output_dir = Path(self.output_var.get().strip())
-        knowledge_files = [Path(file_path) for file_path in self.get_knowledge_files()]
         ollama_model = self.ollama_model_var.get().strip() or "llama3.1:8b"
 
         if answer_file is None or not answer_file.exists() or not answer_file.is_file():
@@ -276,18 +284,20 @@ class QuizProcessorApp:
         if submission_file is None or not submission_file.exists() or not submission_file.is_file():
             messagebox.showerror("Lỗi", "File bài làm không hợp lệ.")
             return
-        for knowledge_file in knowledge_files:
-            if not knowledge_file.exists() or not knowledge_file.is_file():
-                messagebox.showerror("Lỗi", f"File kiến thức không hợp lệ: {knowledge_file}")
-                return
 
         self.set_running(True)
 
         def worker() -> None:
             try:
-                self.grade_action(submission_file, answer_file, output_dir, knowledge_files, ollama_model)
+                self.grade_action(
+                    submission_file,
+                    answer_file,
+                    output_dir,
+                    ollama_model,
+                )
             except Exception as error:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", str(error)))
+                error_message = str(error)
+                self.root.after(0, lambda m=error_message: messagebox.showerror("Lỗi", m))
             finally:
                 self.root.after(0, lambda: self.set_running(False))
 
@@ -317,7 +327,8 @@ class QuizProcessorApp:
             try:
                 self.generate_action(answer_file, output_dir, requested_count)
             except Exception as error:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", str(error)))
+                error_message = str(error)
+                self.root.after(0, lambda m=error_message: messagebox.showerror("Lỗi", m))
             finally:
                 self.root.after(0, lambda: self.set_running(False))
 
@@ -337,7 +348,8 @@ class QuizProcessorApp:
             try:
                 action(input_dir, output_dir)
             except Exception as error:
-                self.root.after(0, lambda: messagebox.showerror("Lỗi", str(error)))
+                error_message = str(error)
+                self.root.after(0, lambda m=error_message: messagebox.showerror("Lỗi", m))
             finally:
                 self.root.after(0, lambda: self.set_running(False))
 
@@ -408,7 +420,6 @@ class QuizProcessorApp:
         submission_file: Path,
         answer_file: Path,
         output_dir: Path,
-        knowledge_files: list[Path],
         ollama_model: str,
     ) -> None:
         def format_question_list(items) -> str:
@@ -422,6 +433,11 @@ class QuizProcessorApp:
         self.root.after(0, lambda: self.log("=== BẮT ĐẦU CHẤM BÀI ==="))
         self.root.after(0, lambda: self.log(f"Bài làm: {submission_file}"))
         self.root.after(0, lambda: self.log(f"Đáp án: {answer_file}"))
+        self.root.after(0, lambda: self.log(f"Model phân tích: {ollama_model}"))
+        self.root.after(
+            0,
+            lambda: self.log("Chế độ Ollama: phân tích trực tiếp từng câu (không dùng RAG embedding)."),
+        )
 
         result = grade_quiz_files(
             submission_file=submission_file,
@@ -468,33 +484,69 @@ class QuizProcessorApp:
         )
         self.root.after(
             0,
-            lambda: self.log(f"File các câu lỗi (chưa làm + sai): {result.wrong_output_file}"),
+            lambda: self.log(
+                f"File báo cáo chấm (đúng -> sai -> chưa làm + phân tích Ollama): {result.wrong_output_file}"
+            ),
         )
         self.root.after(0, lambda: self.error_file_var.set(result.wrong_output_file))
 
-        if knowledge_files:
-            self.root.after(0, lambda: self.log("Đang phân tích lỗ hổng kiến thức với Ollama..."))
-            try:
-                report_file = build_knowledge_gap_report(
-                    grading_result=result,
-                    knowledge_files=knowledge_files,
-                    output_dir=output_dir,
-                    model=ollama_model,
-                )
-                self.root.after(
-                    0,
-                    lambda: self.log(
-                        f"File phân tích lỗ hổng kiến thức: {report_file}"
-                    ),
-                )
-            except Exception as error:
-                self.root.after(
-                    0,
-                    lambda: self.log(
-                        "[CẢNH BÁO] Không tạo được phân tích lỗ hổng kiến thức: "
-                        f"{error}"
-                    ),
-                )
+        self.root.after(0, lambda: self.log("Đang lấy góc nhìn bổ sung từ Ollama cho từng câu sai/chưa làm..."))
+        try:
+            analysis_result = build_knowledge_gap_report(
+                grading_result=result,
+                knowledge_files=[],
+                output_dir=output_dir,
+                model=ollama_model,
+            )
+
+            def attach_insights(items: list[dict]) -> list[dict]:
+                enriched: list[dict] = []
+                for item in items:
+                    index = item.get("index")
+                    try:
+                        key = int(index)
+                    except Exception:
+                        key = None
+
+                    insight = (
+                        analysis_result.notes_by_question.get(key, "")
+                        if key is not None
+                        else ""
+                    )
+                    if insight:
+                        enriched.append({**item, "ollama_insight": insight})
+                    else:
+                        enriched.append(item)
+                return enriched
+
+            build_wrong_questions_docx(
+                correct_items=result.correct_items,
+                unanswered_items=attach_insights(result.unanswered_items),
+                wrong_items=attach_insights(result.wrong_items),
+                output_file=Path(result.wrong_output_file),
+            )
+
+            self.root.after(
+                0,
+                lambda: self.log(
+                    f"Đã chèn gợi ý Ollama ngay dưới từng câu trong file: {result.wrong_output_file}"
+                ),
+            )
+            self.root.after(
+                0,
+                lambda: self.log(
+                    "Mỗi câu sai/chưa làm có thêm đoạn 'Gợi ý từ Ollama' để tham khảo." 
+                ),
+            )
+        except Exception as error:
+            error_message = str(error)
+            self.root.after(
+                0,
+                lambda m=error_message: self.log(
+                    "[CẢNH BÁO] Không tạo được phân tích lỗ hổng kiến thức: "
+                    f"{m}"
+                ),
+            )
         self.root.after(0, lambda: self.log("=== HOÀN TẤT CHẤM BÀI ===\n"))
 
     def generate_action(self, answer_file: Path, output_dir: Path, requested_count: int) -> None:
