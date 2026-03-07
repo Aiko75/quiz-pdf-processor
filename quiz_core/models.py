@@ -86,22 +86,8 @@ class GradingResult:
 
 
 @dataclass
-class KnowledgeGapReportResult:
-    analysis_text: str = ""
-    notes_by_question: Dict[int, str] = field(default_factory=dict)
-
-
-@dataclass
 class QuizGenerateResult:
     source_file: str
     requested_count: int
     generated_count: int
     quiz_output_file: str
-
-
-@dataclass
-class KnowledgeChunk:
-    source: str
-    chunk_index: int
-    text: str
-    embedding: List[float]

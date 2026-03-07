@@ -1,7 +1,7 @@
 import importlib
 import random
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from .models import GradingResult, QuizGenerateResult, QuizOptionState
 from .parsing import (
@@ -59,10 +59,6 @@ def _write_error_section(
                 run.bold = True
                 run.font.color.rgb = RGBColor(255, 0, 0)
 
-        ollama_insight = str(item.get("ollama_insight", "")).strip()
-        if ollama_insight:
-            document.add_paragraph(f"Gợi ý từ Ollama: {ollama_insight}")
-
         document.add_paragraph("")
 
 
@@ -71,7 +67,6 @@ def build_wrong_questions_docx(
     unanswered_items: List[Dict[str, object]],
     wrong_items: List[Dict[str, object]],
     output_file: Path,
-    analysis_text: Optional[str] = None,
 ) -> None:
     docx_module = importlib.import_module("docx")
     docx_shared_module = importlib.import_module("docx.shared")
@@ -83,18 +78,15 @@ def build_wrong_questions_docx(
     style.font.name = "Times New Roman"
     style.font.size = Pt(12)
 
-    document.add_paragraph("BÁO CÁO CÂU LỖI")
+    document.add_paragraph("BÁO CÁO KẾT QUẢ CHẤM")
+    document.add_paragraph(f"Số câu đúng: {len(correct_items)}")
+    document.add_paragraph(f"Số câu sai: {len(wrong_items)}")
+    document.add_paragraph(f"Số câu chưa làm: {len(unanswered_items)}")
     document.add_paragraph("")
 
     _write_error_section(document, "PHẦN 1 - CÁC CÂU LÀM ĐÚNG", correct_items)
     _write_error_section(document, "PHẦN 2 - CÁC CÂU LÀM SAI", wrong_items)
     _write_error_section(document, "PHẦN 3 - CÁC CÂU CHƯA LÀM", unanswered_items)
-
-    if analysis_text and analysis_text.strip():
-        document.add_paragraph("PHẦN 4 - PHÂN TÍCH KIẾN THỨC (OLLAMA)")
-        document.add_paragraph("")
-        for line in analysis_text.splitlines():
-            document.add_paragraph(line)
 
     document.save(output_file)
 

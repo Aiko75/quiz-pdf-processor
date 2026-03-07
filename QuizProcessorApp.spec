@@ -3,7 +3,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = []
 binaries = []
-hiddenimports = ['requests']
+hiddenimports = []
 tmp_ret = collect_all('docx')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
@@ -30,6 +30,7 @@ exe = EXE(
     a.datas,
     [],
     name='QuizProcessorApp',
+    icon='assets/quiz_app.ico',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -3,7 +3,6 @@ from pathlib import Path
 
 from quiz_core import (
     GradingResult,
-    KnowledgeGapReportResult,
     LineData,
     OptionData,
     QuestionData,
@@ -11,7 +10,6 @@ from quiz_core import (
     QuizOptionState,
     QuizQuestionState,
     ValidationResult,
-    build_knowledge_gap_report,
     build_wrong_questions_docx,
     generate_quiz_from_file,
     grade_quiz_files,
@@ -20,7 +18,6 @@ from quiz_core import (
 )
 
 __all__ = [
-    "build_knowledge_gap_report",
     "build_wrong_questions_docx",
     "generate_quiz_from_file",
     "grade_quiz_files",
@@ -33,7 +30,6 @@ __all__ = [
     "QuizOptionState",
     "QuizQuestionState",
     "GradingResult",
-    "KnowledgeGapReportResult",
     "QuizGenerateResult",
     "main",
 ]
