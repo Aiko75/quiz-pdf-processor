@@ -132,7 +132,7 @@ Nguyên tắc kiểm tra:
 Đã dùng `PyInstaller` với chế độ 1 file:
 
 ```bash
-cd Auto_Handling_File
+cd Quiz_Processor
 python -m PyInstaller --noconfirm --clean --windowed --onefile --name QuizProcessorApp --icon assets/quiz_app.ico --collect-all docx quiz_app.py
 ```
 

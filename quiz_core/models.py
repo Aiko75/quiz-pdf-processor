@@ -83,6 +83,10 @@ class GradingResult:
     auto_swapped_files: bool = False
     wrong_items: List[Dict[str, object]] = field(default_factory=list)
     unanswered_items: List[Dict[str, object]] = field(default_factory=list)
+    skipped_details: List[str] = field(default_factory=list)
+    pairing_strategy: str = "question_text"
+    matched_by_text_count: int = 0
+    matched_by_number_count: int = 0
 
 
 @dataclass

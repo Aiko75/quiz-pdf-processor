@@ -389,6 +389,28 @@ class QuizProcessorApp:
         )
 
         self.root.after(0, lambda: self.log(f"Số câu so sánh: {result.compared_questions}"))
+        if result.pairing_strategy == "question_number":
+            self.root.after(
+                0,
+                lambda: self.log(
+                    "[LƯU Ý] Hệ thống ghép câu theo số thứ tự Câu N để tránh lệch do đảo vị trí câu hỏi."
+                ),
+            )
+        elif result.pairing_strategy == "index":
+            self.root.after(
+                0,
+                lambda: self.log(
+                    "[CẢNH BÁO] Không ghép đủ theo nội dung/số câu, hệ thống phải ghép theo vị trí. "
+                    "Kết quả có thể bị lệch."
+                ),
+            )
+            self.root.after(
+                0,
+                lambda: self.log(
+                    "[CHI TIẾT] Số cặp khớp theo nội dung="
+                    f"{result.matched_by_text_count}, theo số câu={result.matched_by_number_count}"
+                ),
+            )
         self.root.after(0, lambda: self.log(f"Số câu đã làm (đúng + sai): {result.answered_count}"))
         self.root.after(0, lambda: self.log(f"Số câu đúng: {result.correct_count}"))
         self.root.after(
@@ -425,6 +447,10 @@ class QuizProcessorApp:
             0,
             lambda: self.log(f"Danh sách câu bỏ qua: {format_question_list(result.skipped_questions)}"),
         )
+        if result.skipped_details:
+            self.root.after(0, lambda: self.log("Chi tiết câu bỏ qua:"))
+            for detail in result.skipped_details:
+                self.root.after(0, lambda d=detail: self.log(f"- {d}"))
         self.root.after(
             0,
             lambda: self.log(

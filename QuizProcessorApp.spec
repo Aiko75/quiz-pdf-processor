@@ -30,7 +30,6 @@ exe = EXE(
     a.datas,
     [],
     name='QuizProcessorApp',
-    icon='assets/quiz_app.ico',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -43,4 +42,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['assets\\quiz_app.ico'],
 )

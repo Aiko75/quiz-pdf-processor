@@ -1,7 +1,8 @@
 import importlib
 import random
+import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .models import GradingResult, QuizGenerateResult, QuizOptionState
 from .parsing import (
@@ -14,6 +15,81 @@ from .parsing import (
 
 def _count_single_highlighted(questions) -> int:
     return sum(1 for question in questions if pick_single_label(question.highlighted_labels) is not None)
+
+
+QUESTION_NUMBER_PATTERN = re.compile(
+    r"^\s*(?:Câu|Question)\s*(\d+)\s*[\.:\)]?",
+    re.IGNORECASE,
+)
+PLAIN_NUMBER_PATTERN = re.compile(r"^\s*(\d+)\s*[\.)]")
+
+
+def _extract_question_number(question_text: str) -> Optional[int]:
+    question_text = question_text.strip()
+    match = QUESTION_NUMBER_PATTERN.match(question_text)
+    if match:
+        return int(match.group(1))
+
+    match = PLAIN_NUMBER_PATTERN.match(question_text)
+    if match:
+        return int(match.group(1))
+
+    return None
+
+
+def _display_question_number(question, fallback_index: int) -> int:
+    extracted = _extract_question_number(question.question)
+    if extracted is not None:
+        return extracted
+    return fallback_index + 1
+
+
+def _build_pairs_by_question_text(
+    submission_questions,
+    answer_questions,
+) -> List[Tuple[int, int]]:
+    compared_pairs: List[Tuple[int, int]] = []
+    answer_indices_by_key: Dict[str, List[int]] = {}
+
+    for answer_index, question in enumerate(answer_questions):
+        key = normalize_question_key(question.question)
+        answer_indices_by_key.setdefault(key, []).append(answer_index)
+
+    for submission_index, question in enumerate(submission_questions):
+        key = normalize_question_key(question.question)
+        candidates = answer_indices_by_key.get(key)
+        if not candidates:
+            continue
+        answer_index = candidates.pop(0)
+        compared_pairs.append((submission_index, answer_index))
+
+    return compared_pairs
+
+
+def _build_pairs_by_question_number(
+    submission_questions,
+    answer_questions,
+) -> List[Tuple[int, int]]:
+    compared_pairs: List[Tuple[int, int]] = []
+    answer_indices_by_number: Dict[int, List[int]] = {}
+
+    for answer_index, question in enumerate(answer_questions):
+        number = _extract_question_number(question.question)
+        if number is None:
+            continue
+        answer_indices_by_number.setdefault(number, []).append(answer_index)
+
+    for submission_index, question in enumerate(submission_questions):
+        number = _extract_question_number(question.question)
+        if number is None:
+            continue
+        candidates = answer_indices_by_number.get(number)
+        if not candidates:
+            continue
+        answer_index = candidates.pop(0)
+        compared_pairs.append((submission_index, answer_index))
+
+    return compared_pairs
 
 
 def _write_error_section(
@@ -115,26 +191,20 @@ def grade_quiz_files(
             answer_file, submission_file = submission_file, answer_file
             auto_swapped_files = True
 
-    compared_pairs: List[Tuple[int, int]] = []
-    answer_indices_by_key: Dict[str, List[int]] = {}
-    for answer_index, question in enumerate(answer_questions):
-        key = normalize_question_key(question.question)
-        answer_indices_by_key.setdefault(key, []).append(answer_index)
+    text_pairs = _build_pairs_by_question_text(submission_questions, answer_questions)
+    number_pairs = _build_pairs_by_question_number(submission_questions, answer_questions)
 
-    for submission_index, question in enumerate(submission_questions):
-        key = normalize_question_key(question.question)
-        candidates = answer_indices_by_key.get(key)
-        if not candidates:
-            continue
-        answer_index = candidates.pop(0)
-        compared_pairs.append((submission_index, answer_index))
+    pairing_strategy = "question_text"
+    compared_pairs = text_pairs
+    if len(number_pairs) > len(compared_pairs):
+        compared_pairs = number_pairs
+        pairing_strategy = "question_number"
 
-    minimum_text_matches = max(1, int(len(submission_questions) * 0.5))
-    if len(compared_pairs) < minimum_text_matches:
-        compared_pairs = [
-            (index, index)
-            for index in range(min(len(submission_questions), len(answer_questions)))
-        ]
+    max_comparable = min(len(submission_questions), len(answer_questions))
+    minimum_matches = max(1, int(max_comparable * 0.5)) if max_comparable > 0 else 0
+    if len(compared_pairs) < minimum_matches:
+        compared_pairs = [(index, index) for index in range(max_comparable)]
+        pairing_strategy = "index"
 
     compared_questions = len(compared_pairs)
 
@@ -146,6 +216,7 @@ def grade_quiz_files(
     wrong_questions: List[int] = []
     unanswered_questions: List[int] = []
     skipped_questions: List[int] = []
+    skipped_details: List[str] = []
     correct_items: List[Dict[str, object]] = []
     unanswered_items: List[Dict[str, object]] = []
     wrong_items: List[Dict[str, object]] = []
@@ -153,6 +224,7 @@ def grade_quiz_files(
     for submission_index, answer_index in compared_pairs:
         student_question = submission_questions[submission_index]
         answer_question = answer_questions[answer_index]
+        question_number = _display_question_number(student_question, submission_index)
 
         correct_label = pick_single_label(answer_question.highlighted_labels)
         selected_labels = list(student_question.highlighted_labels)
@@ -160,7 +232,25 @@ def grade_quiz_files(
 
         if correct_label is None:
             skipped_count += 1
-            skipped_questions.append(submission_index + 1)
+            skipped_questions.append(question_number)
+            highlighted_labels = sorted(
+                {
+                    label.upper()
+                    for label in answer_question.highlighted_labels
+                    if isinstance(label, str) and label.strip()
+                }
+            )
+            if len(highlighted_labels) == 0:
+                skip_reason = (
+                    "Không nhận diện được đáp án đúng trong file đáp án "
+                    "(0 lựa chọn được nhấn mạnh)."
+                )
+            else:
+                skip_reason = (
+                    "File đáp án có nhiều lựa chọn được nhấn mạnh: "
+                    f"{', '.join(highlighted_labels)}."
+                )
+            skipped_details.append(f"Câu {question_number}: {skip_reason}")
             continue
 
         merged_options: Dict[str, QuizOptionState] = {}
@@ -180,10 +270,10 @@ def grade_quiz_files(
 
         if len(selected_labels) == 0:
             unanswered_count += 1
-            unanswered_questions.append(submission_index + 1)
+            unanswered_questions.append(question_number)
             unanswered_items.append(
                 {
-                    "index": submission_index + 1,
+                    "index": question_number,
                     "question_text": normalize_question_text(student_question.question),
                     "selected_labels": [],
                     "correct_label": correct_label,
@@ -194,10 +284,10 @@ def grade_quiz_files(
 
         if selected_label == correct_label:
             correct_count += 1
-            correct_questions.append(submission_index + 1)
+            correct_questions.append(question_number)
             correct_items.append(
                 {
-                    "index": submission_index + 1,
+                    "index": question_number,
                     "question_text": normalize_question_text(student_question.question),
                     "selected_labels": selected_labels,
                     "correct_label": correct_label,
@@ -207,10 +297,10 @@ def grade_quiz_files(
             continue
 
         wrong_count += 1
-        wrong_questions.append(submission_index + 1)
+        wrong_questions.append(question_number)
         wrong_items.append(
             {
-                "index": submission_index + 1,
+                "index": question_number,
                 "question_text": normalize_question_text(student_question.question),
                 "selected_labels": selected_labels,
                 "correct_label": correct_label,
@@ -240,6 +330,10 @@ def grade_quiz_files(
         auto_swapped_files=auto_swapped_files,
         wrong_items=wrong_items,
         unanswered_items=unanswered_items,
+        skipped_details=skipped_details,
+        pairing_strategy=pairing_strategy,
+        matched_by_text_count=len(text_pairs),
+        matched_by_number_count=len(number_pairs),
     )
 
 

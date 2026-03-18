@@ -83,6 +83,17 @@ def main() -> None:
         print(f"Bài làm: {result.submission_file}")
         print(f"Đáp án: {result.answer_file}")
         print(f"Số câu so sánh: {result.compared_questions}")
+        if result.pairing_strategy == "question_number":
+            print("[LƯU Ý] Hệ thống ghép câu theo số thứ tự Câu N để tránh lệch do đảo vị trí câu hỏi.")
+        elif result.pairing_strategy == "index":
+            print(
+                "[CẢNH BÁO] Không ghép đủ theo nội dung/số câu, hệ thống phải ghép theo vị trí. "
+                "Kết quả có thể bị lệch."
+            )
+            print(
+                "[CHI TIẾT] Số cặp khớp theo nội dung="
+                f"{result.matched_by_text_count}, theo số câu={result.matched_by_number_count}"
+            )
         print(f"Số câu đúng: {result.correct_count}")
         print(f"Danh sách câu đúng: {result.correct_questions}")
         print(f"Số câu sai: {result.wrong_count}")
@@ -91,6 +102,10 @@ def main() -> None:
         print(f"Danh sách câu chưa làm: {result.unanswered_questions}")
         print(f"Số câu bỏ qua: {result.skipped_count}")
         print(f"Danh sách câu bỏ qua: {result.skipped_questions}")
+        if result.skipped_details:
+            print("Chi tiết câu bỏ qua:")
+            for detail in result.skipped_details:
+                print(f"- {detail}")
         print(f"Số câu đã làm (đúng + sai): {result.answered_count}")
         if result.auto_swapped_files:
             print("[LƯU Ý] Đã tự động đổi vai trò 2 file vì phát hiện bạn chọn nhầm file đáp án/bài làm.")
