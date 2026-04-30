@@ -122,6 +122,11 @@ class QuizProcessorApp:
         )
         self.validate_button.pack(side=tk.LEFT)
 
+        self.report_button = ttk.Button(
+            action_frame, text="5) Báo cáo kiểm tra DOCX", command=self.start_report
+        )
+        self.report_button.pack(side=tk.LEFT, padx=(8, 0))
+
         self.grade_button = ttk.Button(
             action_frame, text="3) Chấm bài", command=self.start_grade
         )
@@ -208,6 +213,7 @@ class QuizProcessorApp:
         state = tk.DISABLED if running else tk.NORMAL
         self.process_button.configure(state=state)
         self.validate_button.configure(state=state)
+        self.report_button.configure(state=state)
         self.grade_button.configure(state=state)
         self.generate_button.configure(state=state)
         self.open_output_button.configure(state=state)
@@ -217,6 +223,9 @@ class QuizProcessorApp:
 
     def start_validate(self) -> None:
         self.run_background(self.validate_action)
+
+    def start_report(self) -> None:
+        self.run_background(self.report_action)
 
     def start_grade(self) -> None:
         self.error_file_var.set("")
@@ -319,6 +328,18 @@ class QuizProcessorApp:
                         f"[OK] {r['pdf']} -> {r['question_count']} câu"
                     ),
                 )
+                if result.get("validation_report_file"):
+                    self.root.after(
+                        0,
+                        lambda r=result: self.log(
+                            "[BÁO CÁO] "
+                            f"{r['validation_report_file']} | "
+                            f"đúng={r.get('validation_correct_count', 0)}, "
+                            f"sai={r.get('validation_wrong_count', 0)}, "
+                            f"miss={r.get('validation_missed_count', 0)}, "
+                            f"tiêu đề={r.get('validation_title_issue_count', 0)}"
+                        ),
+                    )
             else:
                 self.root.after(
                     0,
@@ -361,8 +382,38 @@ class QuizProcessorApp:
                     f"practice_has_highlight={i.practice_highlight_count}"
                 ),
             )
+            if getattr(item, "report_file", ""):
+                self.root.after(0, lambda i=item: self.log(f"report_file={i.report_file}"))
 
         self.root.after(0, lambda: self.log("\n=== HOÀN TẤT KIỂM TRA ===\n"))
+
+    def report_action(self, input_dir: Path, output_dir: Path) -> None:
+        self.root.after(0, lambda: self.log("=== BẮT ĐẦU TẠO BÁO CÁO DOCX ==="))
+        self.root.after(0, lambda: self.log(f"Input: {input_dir}"))
+        self.root.after(0, lambda: self.log(f"Output: {output_dir}"))
+
+        results = validate_folder(input_dir, output_dir)
+
+        for item in results:
+            self.root.after(0, lambda i=item: self.log(f"\n--- {i.pdf_name} ---"))
+            self.root.after(
+                0,
+                lambda i=item: self.log(
+                    f"Báo cáo: {i.report_file}"
+                    if getattr(i, "report_file", "")
+                    else "Báo cáo: (chưa tạo được file)"
+                ),
+            )
+            self.root.after(
+                0,
+                lambda i=item: self.log(
+                    "Tổng câu: "
+                    f"{i.original_questions}, đúng={i.correct_count}, sai={i.wrong_count}, "
+                    f"miss={i.missed_count}, lỗi tiêu đề={i.title_issue_count}"
+                ),
+            )
+
+        self.root.after(0, lambda: self.log("\n=== HOÀN TẤT TẠO BÁO CÁO DOCX ===\n"))
 
     def grade_action(
         self,

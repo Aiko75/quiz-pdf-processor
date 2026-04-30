@@ -45,6 +45,23 @@ class ValidationResult:
     no_highlight_count: int
     multi_highlight_count: int
     practice_highlight_count: int
+    correct_count: int = 0
+    wrong_count: int = 0
+    missed_count: int = 0
+    title_issue_count: int = 0
+    source_no_answer_count: int = 0
+    report_file: str = ""
+
+
+@dataclass
+class ValidationIssue:
+    index: int
+    status: str
+    reason: str
+    source_question: str
+    output_question: str
+    source_answer: str
+    detected_answers: List[str] = field(default_factory=list)
 
 
 @dataclass

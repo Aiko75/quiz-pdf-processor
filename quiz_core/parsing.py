@@ -1,6 +1,7 @@
 from collections import Counter
 import importlib
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -9,12 +10,22 @@ import fitz
 from .models import LineData, OptionData, QuestionData, QuizOptionState, QuizQuestionState
 
 
+# Standard quiz PDF pattern (original)
 QUESTION_PATTERN = re.compile(
-    r"^(?:Câu\s*\d+[\.:\)]?|Question\s*\d+[\.:\)]?|\d+[\.)])\s+",
+    r"^(?:Câu\s*\d+[\.:)]?|Question\s*\d+[\.:)]?|\d+[\.:)])\ +",
     re.IGNORECASE,
 )
+# LMS PDF pattern: "Câu h ỏ i 1" (with spaces between characters due to PDF extraction)
+LMS_QUESTION_PATTERN = re.compile(
+    r"^Câu\s+h\s+ỏ\s+i\s+\d+",
+    re.IGNORECASE,
+)
+
 UPPER_OPTION_PATTERN = re.compile(r"^([A-D])(?:[\.:\)\-]\s*|\s+)(.+)$")
 LOWER_OPTION_PATTERN = re.compile(r"^([a-d])[\.:\)\-]\s*(.+)$")
+# LMS options: "a." alone or with text  
+LMS_OPTION_ALONE_PATTERN = re.compile(r"^([a-dA-D])\.\s*$")
+LMS_OPTION_WITH_TEXT_PATTERN = re.compile(r"^([a-dA-D])\.\s+(.+)$")
 HEADER_NOISE_PATTERN = re.compile(r"^(Chương\s*\d+\s*:|LTTN\s*\d+\s*:?)$", re.IGNORECASE)
 INLINE_NOISE_PATTERN = re.compile(
     r"(Downloaded\s+by|binhprodotcom@gmail\.com|l[O0]M[oO]ARcPSD\|?\d*).*$",
@@ -24,6 +35,108 @@ FULL_NOISE_PATTERN = re.compile(
     r"^(Downloaded\s+by.*|\s*\d+\s*/\s*\d+\s*|\s*Trang\s*\d+\s*)$",
     re.IGNORECASE,
 )
+
+
+def is_lms_noise_line(text: str) -> bool:
+    """
+    Check if a line is LMS metadata/noise that should be filtered.
+    These are typically header info, status lines, timestamps, URLs, etc.
+    """
+    # IMPORTANT: Don't filter checkmarks (✓) - they're used for answer detection
+    if text.strip() == '\uf00c':
+        return False
+    
+    text = _normalize_text(text)
+    text_lower = text.lower().strip()
+    
+    # Empty or too short
+    if not text_lower or len(text_lower) < 2:
+        return True
+    
+    # URLs
+    if text_lower.startswith("http://") or text_lower.startswith("https://"):
+        return True
+    
+    # Exact matches for common LMS noise
+    exact_noise = [
+        _normalize_text("đúng"),
+        _normalize_text("sai"),
+        _normalize_text("trạng thái"),
+        _normalize_text("thời gian thực"),
+        _normalize_text("thời gian"),
+    ]
+    if text_lower in exact_noise:
+        return True
+    
+    # Duration pattern: "27 phút 57 giây" or similar
+    if re.match(r"^\d+\s+(phút|giây|tiếng|ngày|tuần).*", text_lower):
+        return True
+    
+    # Page numbers: "1/14", "2/14", etc.
+    if re.match(r"^\d+/\d+\s*$", text_lower):
+        return True
+    
+    # Pattern-based noise
+    # Timestamps: "11/25/25, 2:24 PM"
+    if re.match(r"^\d+/\d+/\d+,?\s*\d+:\d+\s*[AP]M", text):
+        return True
+    
+    # Header lines (contain "bảng điều khiển", "chapter", "week" regardless of length)
+    # These are always LMS header lines
+    lms_headers = [
+        _normalize_text("bảng điều khiển"),
+        "chapter",
+        "week",
+        _normalize_text("bắt đầu vào"),
+        _normalize_text("kết thúc lúc"),
+    ]
+    for header in lms_headers:
+        if header in text_lower:
+            return True
+    
+    # Standalone score/time patterns (only these keywords, nothing else substantial)
+    if len(text_lower) < 100:  
+        simple_noise = [
+            _normalize_text("điểm"),
+            _normalize_text("đạt điểm"),
+            _normalize_text("xem lại"),
+            _normalize_text("thời gian"),
+        ]
+        for noise in simple_noise:
+            if noise in text_lower:
+                # Make sure text is mostly just this, not incidental
+                # e.g., "Điểm" by itself but not "Điểm này là..."
+                if text_lower == noise or text_lower.startswith(noise + " "):
+                    return True
+    
+    # Time-like: "Wednesday, 13 August 2025, 11:01 AM"
+    if re.match(r"^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d+", text, re.IGNORECASE):
+        return True
+    
+    # Status/score patterns
+    if _normalize_text("đã xong") in text_lower or "hiện" == text_lower:
+        return True
+    
+    # Numbers like "49,00/50,00" or "9,80 trên 10,00"
+    if re.match(r"^\d+[,\.]\d+(\s*(trên|/|out of))?\s*\d+[,\.]?\d*", text):
+        return True
+    
+    return False
+
+
+def is_lms_format(lines: List[LineData]) -> bool:
+    for line in lines:
+        text = clean_text_noise(line.text).strip()
+        if text and LMS_QUESTION_PATTERN.match(text):
+            return True
+    return False
+
+
+
+
+def _normalize_text(text: str) -> str:
+    """Normalize unicode text (NFC form) for consistent matching."""
+    return unicodedata.normalize('NFC', text)
 
 
 def clean_text_noise(text: str) -> str:
@@ -111,7 +224,175 @@ def match_option_line(text: str) -> Optional[re.Match[str]]:
     lower = LOWER_OPTION_PATTERN.match(text)
     if lower:
         return lower
+    # LMS format: try to match "a. text" or just "a."
+    lms_with_text = LMS_OPTION_WITH_TEXT_PATTERN.match(text)
+    if lms_with_text:
+        return lms_with_text
     return None
+
+
+def is_option_label_only(text: str) -> bool:
+    """Check if text is only an option label like 'a.' without content."""
+    return LMS_OPTION_ALONE_PATTERN.match(text) is not None
+
+
+def parse_lms_questions(lines: List[LineData]) -> List[QuestionData]:
+    """
+    Parse LMS PDF format with improved answer detection using geometric positioning.
+    
+    Strategy:
+    1. Sequential line processing (keep current approach).
+    2. When encountering checkmark, find the option closest to it geometrically (by y0).
+    3. This handles cases where checkmark is not directly after the option text.
+    """
+    questions: List[QuestionData] = []
+    current_question_text: Optional[str] = None
+    current_question_meta: Optional[LineData] = None
+    current_options: List[OptionData] = []
+    current_correct_label: Optional[str] = None
+    last_option_index: int = -1
+    seen_first_option: bool = False
+    last_option_y0: Optional[float] = None
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        text = clean_text_noise(line.text).strip()
+        lines_consumed = 1
+        
+        # Skip empty or noise lines
+        if not text or FULL_NOISE_PATTERN.match(text) or is_lms_noise_line(text):
+            i += lines_consumed
+            continue
+        
+        # Skip LMS headers
+        if LMS_QUESTION_PATTERN.match(text):
+            i += lines_consumed
+            continue
+        
+        # Check if this is a checkmark (correct answer indicator)
+        if line.text.strip() == '\uf00c':
+            # Find option closest to checkmark by geometric position (y0)
+            if current_options:
+                closest_option = None
+                closest_distance = float('inf')
+                
+                for option in current_options:
+                    distance = abs(line.y0 - option.y0)
+                    if distance < closest_distance:
+                        closest_distance = distance
+                        closest_option = option
+                
+                # Mark the closest option as correct
+                if closest_option:
+                    closest_option.emphasized = True
+                    current_correct_label = closest_option.label
+            
+            i += lines_consumed
+            continue
+        
+        # Check for option line (a., b., c., d. or with text)
+        option_match = match_option_line(text)
+        standalone_option = is_option_label_only(text)
+        
+        if option_match or standalone_option:
+            label = (option_match.group(1) if option_match else text[0]).upper()
+            option_text = option_match.group(2).strip() if option_match else ""
+            
+            if label not in {"A", "B", "C", "D"}:
+                i += lines_consumed
+                continue
+            
+            seen_first_option = True
+            
+            # If no option text on same line, try to grab from next line
+            if not option_text and i + 1 < len(lines):
+                next_line = lines[i + 1]
+                next_text = clean_text_noise(next_line.text).strip()
+                if (next_text and 
+                    not match_option_line(next_text) and 
+                    not is_option_label_only(next_text) and 
+                    not LMS_QUESTION_PATTERN.match(next_text) and 
+                    not is_lms_noise_line(next_text) and
+                    next_text != '\uf00c'):
+                    option_text = next_text
+                    lines_consumed = 2
+            
+            current_options.append(
+                OptionData(
+                    label=label,
+                    text=repair_fragmented_text(option_text),
+                    emphasized=False,
+                    is_bold=line.is_bold,
+                    color_int=line.color_int,
+                    page_number=line.page_number,
+                    x0=line.x0,
+                    y0=line.y0,
+                )
+            )
+            last_option_index = len(current_options) - 1
+            last_option_y0 = line.y0
+            
+            # When we have 4 options, save the question
+            if len(current_options) == 4:
+                # Before saving, look ahead for checkmarks in the next few lines
+                if not current_correct_label:  # Only if not already detected
+                    for lookahead_idx in range(i + 1, min(i + 10, len(lines))):
+                        lookahead_line = lines[lookahead_idx]
+                        if lookahead_line.text.strip() == '\uf00c':
+                            # Found a checkmark, match it to closest option
+                            closest_option = None
+                            closest_distance = float('inf')
+                            
+                            for option in current_options:
+                                distance = abs(lookahead_line.y0 - option.y0)
+                                if distance < closest_distance:
+                                    closest_distance = distance
+                                    closest_option = option
+                            
+                            if closest_option:
+                                closest_option.emphasized = True
+                                current_correct_label = closest_option.label
+                            break
+                        
+                        # Stop if we hit a new question header
+                        lookahead_text = clean_text_noise(lookahead_line.text).strip()
+                        if LMS_QUESTION_PATTERN.match(lookahead_text):
+                            break
+                
+                if current_question_text:
+                    question = QuestionData(
+                        question=current_question_text,
+                        page_number=current_question_meta.page_number if current_question_meta else line.page_number,
+                        x0=current_question_meta.x0 if current_question_meta else line.x0,
+                        y0=current_question_meta.y0 if current_question_meta else line.y0,
+                        options=order_options(current_options),
+                        answer_label=current_correct_label,
+                    )
+                    finalize_answer(question)
+                    questions.append(question)
+                
+                # Reset for next question
+                current_question_text = None
+                current_question_meta = None
+                current_options = []
+                current_correct_label = None
+                last_option_index = -1
+                last_option_y0 = None
+                seen_first_option = False
+            
+            i += lines_consumed
+            continue
+        
+        # If we haven't seen the first option yet, accumulate question text
+        if not seen_first_option:
+            current_question_text = text
+            if current_question_meta is None:
+                current_question_meta = line
+        
+        i += lines_consumed
+    
+    return deduplicate_questions(questions)
 
 
 def extract_styled_lines(pdf_path: Path) -> List[LineData]:
@@ -162,7 +443,111 @@ def extract_styled_lines(pdf_path: Path) -> List[LineData]:
     return lines
 
 
+def preprocess_lms_lines(lines: List[LineData]) -> List[LineData]:
+    """
+    Preprocess LMS PDF lines:
+    1. Remove noise lines (status, scores, timestamps, header info)
+    2. Remove 'Câu h ỏ i N' headers
+    3. Merge 'a.' alone with next line (which is the option content)
+    4. Mark first option 'a.' so we know question text is before it
+    """
+    result: List[LineData] = []
+    i = 0
+    
+    # Step 1: Filter out noise and headers first
+    filtered: List[LineData] = []
+    for line in lines:
+        text = clean_text_noise(line.text).strip()
+        
+        # Skip empty lines
+        if not text:
+            continue
+        
+        # Skip noise lines
+        if FULL_NOISE_PATTERN.match(text) or is_lms_noise_line(text):
+            continue
+        
+        # Skip LMS question headers like 'Câu h ỏ i 1'
+        if LMS_QUESTION_PATTERN.match(text):
+            continue
+        
+        filtered.append(line)
+    
+    # Step 2: Merge "a." + content and detect question text
+    i = 0
+    option_label_order = []  # Track which labels we've seen in current question set
+    
+    while i < len(filtered):
+        line = filtered[i]
+        text = clean_text_noise(line.text).strip()
+        
+        # If this is an option label alone ('a.', 'b.', etc.)
+        if LMS_OPTION_ALONE_PATTERN.match(text):
+            label = text.rstrip(".").upper()
+            
+            # If this is 'a.', it's the start of a new question's options
+            # Mark the previous line as question text ONLY if completing previous option set
+            should_mark_previous = False
+            if label == "A":
+                # Mark previous line only if:
+                # 1. This is first "a." (len == 0)
+                # 2. OR just completed 4 options (len == 4)
+                if len(option_label_order) == 0 or len(option_label_order) == 4:
+                    should_mark_previous = True
+            
+            if should_mark_previous and i > 0 and result:
+                prev_line = result[-1]
+                prev_text = clean_text_noise(prev_line.text).strip()
+                # Only mark if not already marked and not an option
+                if (not prev_text.startswith("**Q**") and 
+                    not is_option_label_only(prev_text)):
+                    result[-1].text = f"**Q** {result[-1].text}"
+            
+            # Append label BEFORE resetting
+            option_label_order.append(label)
+            
+            # Reset when completing a set (at end of "d.")
+            if label == "D" and len(option_label_order) == 4:
+                option_label_order = []
+            
+            # Check if next line exists and is content
+            if i + 1 < len(filtered):
+                next_line = filtered[i + 1]
+                next_text = clean_text_noise(next_line.text).strip()
+                
+                # Only merge if next is NOT another label or question
+                if (next_text and 
+                    not is_option_label_only(next_text) and
+                    not QUESTION_PATTERN.match(next_text)):
+                    
+                    # Merge: 'a. content'
+                    merged_text = f"{text} {next_text}"
+                    merged_line = LineData(
+                        text=merged_text,
+                        is_bold=line.is_bold,
+                        color_int=line.color_int,
+                        page_number=line.page_number,
+                        x0=line.x0,
+                        y0=line.y0,
+                    )
+                    result.append(merged_line)
+                    i += 2  # Skip both lines (this label and its content)
+                    continue
+        
+        # Regular line or label that couldn't be merged
+        result.append(line)
+        i += 1
+    
+    return result
+
+
 def parse_questions(lines: List[LineData]) -> List[QuestionData]:
+    if is_lms_format(lines):
+        return parse_lms_questions(lines)
+
+    # Preprocess LMS PDF format (merge "a." with content, skip "Câu h ỏ i N")
+    lines = preprocess_lms_lines(lines)
+    
     questions: List[QuestionData] = []
     current: Optional[QuestionData] = None
 
@@ -174,7 +559,12 @@ def parse_questions(lines: List[LineData]) -> List[QuestionData]:
         if HEADER_NOISE_PATTERN.match(text):
             continue
 
-        if QUESTION_PATTERN.match(text):
+        # Check for marked question text (LMS format)
+        is_marked_question = text.startswith("**Q**")
+        if is_marked_question:
+            text = text[4:].strip()  # Remove "**Q**" prefix
+
+        if QUESTION_PATTERN.match(text) or is_marked_question:
             if current and len(current.options) == 4:
                 current.options = order_options(current.options)
                 finalize_answer(current)
@@ -224,15 +614,12 @@ def parse_questions(lines: List[LineData]) -> List[QuestionData]:
                 current = None
             continue
 
-        if current is None:
-            current = QuestionData(
-                question=text,
-                page_number=line.page_number,
-                x0=line.x0,
-                y0=line.y0,
-            )
-            continue
 
+        # Only create new question from text if it's a valid question (has pattern/marker)
+        # Don't create from arbitrary text lines
+        if current is None:
+            # Silently skip non-question lines when no current question
+            continue
         if current.options:
             if should_append_to_last_option(current.options[-1], line):
                 merged_text = f"{current.options[-1].text} {text}".strip()
@@ -254,6 +641,18 @@ def parse_questions(lines: List[LineData]) -> List[QuestionData]:
 
 
 def finalize_answer(question: QuestionData) -> None:
+    # First check if any option is already marked as emphasized (from checkmark)
+    emphasized_labels = [opt.label for opt in question.options if opt.emphasized]
+    if len(emphasized_labels) == 1:
+        question.answer_label = emphasized_labels[0]
+        return
+    
+    # Clear emphasized if multiple or none found
+    if len(emphasized_labels) != 1:
+        for opt in question.options:
+            opt.emphasized = False
+    
+    # Fallback: check bold styling
     bold_labels = [opt.label for opt in question.options if opt.is_bold]
     if len(bold_labels) == 1:
         question.answer_label = bold_labels[0]
@@ -261,6 +660,7 @@ def finalize_answer(question: QuestionData) -> None:
             opt.emphasized = opt.label == question.answer_label
         return
 
+    # Fallback: check color
     color_values = [opt.color_int for opt in question.options]
     dominant_color = Counter(color_values).most_common(1)[0][0] if color_values else 0
     non_dominant_labels = [opt.label for opt in question.options if opt.color_int != dominant_color]
@@ -336,9 +736,11 @@ def write_output_files(
 
             ans_paragraph = ans_doc.add_paragraph()
             ans_run = ans_paragraph.add_run(option_line)
+            
+            # Format correct answer with bold
             if question.answer_label == option.label:
-                if option.is_bold:
-                    ans_run.bold = True
+                ans_run.bold = True
+                # Also apply color if original had different color
                 if option.color_int != 0 and option.color_int != dominant_color:
                     red = (option.color_int >> 16) & 255
                     green = (option.color_int >> 8) & 255
@@ -360,10 +762,20 @@ def process_pdf_file(pdf_file: Path, output_dir: Path) -> Dict[str, object]:
     if not questions:
         return {"status": "skipped", "pdf": pdf_file.name, "question_count": 0}
     write_output_files(questions, pdf_file, output_dir)
+
+    from .validation import generate_validation_report_for_pdf
+
+    validation_result = generate_validation_report_for_pdf(pdf_file, output_dir)
     return {
         "status": "ok",
         "pdf": pdf_file.name,
         "question_count": len(questions),
+        "validation_report_file": validation_result.report_file,
+        "validation_correct_count": validation_result.correct_count,
+        "validation_wrong_count": validation_result.wrong_count,
+        "validation_missed_count": validation_result.missed_count,
+        "validation_title_issue_count": validation_result.title_issue_count,
+        "validation_mismatch_count": validation_result.mismatch_count,
     }
 
 
