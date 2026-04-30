@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class LogConsole extends StatefulWidget {
   final List<String> logs;
@@ -53,8 +54,20 @@ class _LogConsoleState extends State<LogConsole> {
               ),
               const Spacer(),
               IconButton(
+                icon: const Icon(Icons.copy, size: 16),
+                onPressed: () {
+                  if (widget.logs.isNotEmpty) {
+                    Clipboard.setData(ClipboardData(text: widget.logs.join('\n')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Đã copy logs vào clipboard')),
+                    );
+                  }
+                },
+                tooltip: 'Copy logs',
+              ),
+              IconButton(
                 icon: const Icon(Icons.delete_outline, size: 16),
-                onPressed: () => widget.logs.clear(),
+                onPressed: () => setState(() => widget.logs.clear()),
                 tooltip: 'Clear logs',
               )
             ],

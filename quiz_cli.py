@@ -13,6 +13,7 @@ from quiz_pdf_processor import (
     grade_quiz_files,
     generate_quiz_from_file,
     generate_quiz_with_range,
+    import_quiz_file,
 )
 
 def emit(data_type, **kwargs):
@@ -30,7 +31,7 @@ def format_question_list(items):
 
 def main():
     parser = argparse.ArgumentParser(description="Quiz Processor CLI for Flutter UI")
-    parser.add_argument("--action", required=True, choices=["process", "validate", "report", "grade", "generate"])
+    parser.add_argument("--action", required=True, choices=["process", "validate", "report", "grade", "generate", "import", "preview"])
     parser.add_argument("--input", help="Thư mục hoặc file đầu vào")
     parser.add_argument("--output", help="Thư mục đầu ra")
     parser.add_argument("--answer-file", help="File đáp án")
@@ -39,6 +40,10 @@ def main():
     parser.add_argument("--from-q", type=int, default=1, help="Câu bắt đầu")
     parser.add_argument("--to-q", type=int, default=0, help="Câu kết thúc (0 = hết)")
     parser.add_argument("--gen-answer", action="store_true", help="Tạo file đáp án kèm theo")
+    parser.add_argument("--interactive", action="store_true", help="Tạo bài thi tương tác JSON")
+    parser.add_argument("--time-limit", type=int, default=0, help="Giới hạn thời gian (phút)")
+    parser.add_argument("--title", help="Tên bài thi")
+    parser.add_argument("--workspace", help="Đường dẫn thư mục làm việc (workspace)")
     
     args = parser.parse_args()
     
@@ -46,17 +51,21 @@ def main():
         output_dir = Path(args.output).resolve() if args.output else None
         
         if args.action == "process":
-            input_dir = Path(args.input).resolve()
+            input_path = Path(args.input).resolve()
             emit("log", message="=== BẮT ĐẦU XỬ LÝ PDF -> DOCX ===")
-            emit("log", message=f"Input: {input_dir}")
+            emit("log", message=f"Input: {input_path}")
             emit("log", message=f"Output: {output_dir}")
             
-            results = process_folder(input_dir, output_dir)
+            from quiz_pdf_processor import process_pdf_file, process_folder
+            
+            if input_path.is_file():
+                results = [process_pdf_file(input_path, output_dir)]
+            else:
+                results = process_folder(input_path, output_dir)
+                
             for r in results:
                 if r["status"] == "ok":
                     emit("log", message=f"[OK] {r['pdf']} -> {r['question_count']} câu")
-                    if r.get("validation_report_file"):
-                        emit("log", message=f"[BÁO CÁO] {r['validation_report_file']} | đúng={r.get('validation_correct_count', 0)}, sai={r.get('validation_wrong_count', 0)}")
                 else:
                     emit("log", message=f"[BỎ QUA] {r['pdf']} - không nhận diện được câu hỏi")
             emit("result", status="success", message="Xử lý hoàn tất")
@@ -119,18 +128,55 @@ def main():
                     output_dir=output_dir,
                     from_question=args.from_q,
                     to_question=args.to_q if args.to_q > 0 else None,
-                    generate_answer_file=args.gen_answer
+                    interactive=args.interactive,
+                    time_limit=args.time_limit,
+                    workspace=args.workspace
                 )
             else:
                 result = generate_quiz_from_file(
                     source_file=ans_file,
                     output_dir=output_dir,
-                    question_count=args.count
+                    question_count=args.count,
+                    interactive=args.interactive,
+                    time_limit=args.time_limit,
+                    workspace=args.workspace
                 )
             
             emit("log", message=f"Số câu tạo thực tế: {result.generated_count}")
             emit("log", message=f"File đề tạo mới: {result.quiz_output_file}")
             emit("result", status="success", message="Tạo đề hoàn tất", file=result.quiz_output_file)
+
+        elif args.action == "import":
+            input_file = Path(args.input).resolve()
+            emit("log", message="=== BẮT ĐẦU NHẬP ĐỀ ===")
+            emit("log", message=f"File: {input_file}")
+            json_path = import_quiz_file(
+                source_file=input_file,
+                title=args.title if args.title else None,
+                time_limit=args.time_limit,
+                workspace=args.workspace
+            )
+            emit("log", message=f"Nhập thành công!")
+            emit("result", status="success", message="Nhập đề hoàn tất", file=str(json_path))
+
+        elif args.action == "preview":
+            from quiz_pdf_processor import extract_styled_lines, parse_questions
+            input_file = Path(args.input).resolve()
+            emit("log", message=f"Đang xem trước: {input_file.name}...")
+            
+            lines = extract_styled_lines(input_file)
+            questions = parse_questions(lines)
+            
+            preview_data = []
+            for i, q in enumerate(questions):
+                preview_data.append({
+                    "id": i,
+                    "question": q.question,
+                    "options": {opt.label: opt.text for opt in q.options},
+                    "correct_answer": q.answer_label
+                })
+            
+            emit("result", status="success", questions=preview_data)
 
     except Exception as e:
         emit("result", status="error", message=str(e), traceback=traceback.format_exc())

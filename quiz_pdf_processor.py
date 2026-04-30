@@ -15,6 +15,7 @@ from quiz_core import (
     generate_quiz_from_file,
     generate_quiz_with_range,
     grade_quiz_files,
+    import_quiz_file,
     process_folder,
     validate_folder,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "generate_quiz_with_range",
     "grade_quiz_files",
     "generate_validation_report_for_pdf",
+    "import_quiz_file",
     "process_folder",
     "validate_folder",
     "LineData",

@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "quiz_flutter_ui" "\0"
+            VALUE "FileDescription", "Quiz Processor" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "quiz_flutter_ui" "\0"
+            VALUE "InternalName", "QuizProcessor" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "quiz_flutter_ui.exe" "\0"
-            VALUE "ProductName", "quiz_flutter_ui" "\0"
+            VALUE "OriginalFilename", "QuizProcessor.exe" "\0"
+            VALUE "ProductName", "Quiz Processor" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

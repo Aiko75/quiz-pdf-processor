@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'settings_service.dart';
 
 class BackendService {
   static final BackendService _instance = BackendService._internal();
@@ -41,9 +42,16 @@ class BackendService {
       if (params != null) {
         params.forEach((key, value) {
           args.add('--$key');
-          args.add(value);
+          if (value.isNotEmpty) {
+            args.add(value);
+          }
         });
       }
+
+      // Add workspace path
+      final settings = await SettingsService.getInstance();
+      args.add('--workspace');
+      args.add(settings.workspacePath);
 
       // TODO: Khi đóng gói, chúng ta sẽ gọi file .exe thay vì python script
       _currentProcess = await Process.start(executable, args);

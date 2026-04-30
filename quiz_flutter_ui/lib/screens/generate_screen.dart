@@ -17,6 +17,8 @@ class _GenerateScreenState extends State<GenerateScreen> {
   int _fromQ = 1;
   int _toQ = 0;
   bool _genAnswer = true;
+  bool _isInteractive = true;
+  int _timeLimit = 45;
   final List<String> _logs = [];
   bool _isRunning = false;
 
@@ -42,6 +44,8 @@ class _GenerateScreenState extends State<GenerateScreen> {
         'from-q': _fromQ.toString(),
         'to-q': _toQ.toString(),
         if (_genAnswer) 'gen-answer': '',
+        if (_isInteractive) 'interactive': '',
+        if (_isInteractive) 'time-limit': _timeLimit.toString(),
       },
       onLog: (msg) => setState(() => _logs.add(msg)),
       onResult: (res) {
@@ -111,13 +115,57 @@ class _GenerateScreenState extends State<GenerateScreen> {
                         ),
                       ),
                       const SizedBox(width: 32),
-                      CheckboxMenuButton(
-                        value: _genAnswer,
-                        onChanged: (val) => setState(() => _genAnswer = val ?? true),
-                        child: const Text('Tạo file đáp án kèm theo'),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CheckboxMenuButton(
+                            value: _genAnswer,
+                            onChanged: (val) => setState(() => _genAnswer = val ?? true),
+                            child: const Text('Tạo file đáp án kèm theo'),
+                          ),
+                          CheckboxMenuButton(
+                            value: _isInteractive,
+                            onChanged: (val) => setState(() => _isInteractive = val ?? true),
+                            child: const Text('Tạo bài kiểm tra trực tuyến'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                  if (_isInteractive) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Text('Thời gian làm bài (phút):'),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Slider(
+                            value: _timeLimit.toDouble(),
+                            min: 5,
+                            max: 180,
+                            divisions: 35,
+                            label: _timeLimit.toString(),
+                            onChanged: (val) => setState(() => _timeLimit = val.toInt()),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 60,
+                          child: TextFormField(
+                            key: ValueKey(_timeLimit),
+                            initialValue: _timeLimit.toString(),
+                            keyboardType: TextInputType.number,
+                            onChanged: (val) {
+                              final parsed = int.tryParse(val);
+                              if (parsed != null) {
+                                _timeLimit = parsed;
+                              }
+                            },
+                            decoration: const InputDecoration(isDense: true, suffixText: 'p'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const Divider(),
                   Row(
                     children: [
