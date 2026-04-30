@@ -385,3 +385,111 @@ def generate_quiz_from_file(
         generated_count=selected_count,
         quiz_output_file=str(output_file),
     )
+
+
+def generate_quiz_with_range(
+    source_file: Path,
+    output_dir: Path,
+    from_question: int = 1,
+    to_question: Optional[int] = None,
+    generate_answer_file: bool = True,
+) -> QuizGenerateResult:
+    """
+    Generate quiz from a range of questions.
+    
+    Args:
+        source_file: Source DOCX file containing questions with answers
+        output_dir: Output directory
+        from_question: Start question number (1-indexed)
+        to_question: End question number (inclusive, 1-indexed). If None, go to end.
+        generate_answer_file: Whether to generate answer key file
+    
+    Returns:
+        QuizGenerateResult with quiz file path and stats
+    """
+    if not source_file.exists() or not source_file.is_file():
+        raise FileNotFoundError(f"Không tìm thấy file nguồn để tạo đề: {source_file}")
+
+    if from_question < 1:
+        raise ValueError("Câu bắt đầu phải >= 1")
+
+    questions = parse_questions_for_grading(source_file)
+    if not questions:
+        raise ValueError("Không đọc được câu hỏi từ file nguồn")
+
+    # If to_question is None, use the last question
+    if to_question is None:
+        to_question = len(questions)
+    
+    # Validate range
+    if from_question > to_question:
+        raise ValueError(f"Câu bắt đầu ({from_question}) phải <= câu kết thúc ({to_question})")
+    
+    if to_question > len(questions):
+        raise ValueError(f"Câu kết thúc ({to_question}) vượt quá tổng số câu ({len(questions)})")
+
+    # Extract questions in range (convert 1-indexed to 0-indexed)
+    range_questions = questions[from_question - 1:to_question]
+    
+    # Shuffle questions
+    selected_questions = random.sample(range_questions, len(range_questions))
+    selected_count = len(selected_questions)
+
+    docx_module = importlib.import_module("docx")
+    docx_shared_module = importlib.import_module("docx.shared")
+    Document = docx_module.Document
+    Pt = docx_shared_module.Pt
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create quiz file (practice version)
+    quiz_file = output_dir / f"{source_file.stem}_de_{from_question}_{to_question}_{selected_count}_cau.docx"
+    quiz_doc = Document()
+    style = quiz_doc.styles["Normal"]
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(12)
+
+    for index, question in enumerate(selected_questions, start=1):
+        quiz_doc.add_paragraph(f"Câu {index}: {normalize_question_text(question.question)}")
+        for label in ["A", "B", "C", "D"]:
+            option = question.options.get(label)
+            if option is None:
+                continue
+            quiz_doc.add_paragraph(f"{label}. {option.text}")
+        quiz_doc.add_paragraph("")
+
+    quiz_doc.save(quiz_file)
+
+    # Create answer file if requested
+    answer_file = None
+    if generate_answer_file:
+        answer_file = output_dir / f"{source_file.stem}_dap_an_{from_question}_{to_question}_{selected_count}_cau.docx"
+        answer_doc = Document()
+        style = answer_doc.styles["Normal"]
+        style.font.name = "Times New Roman"
+        style.font.size = Pt(12)
+
+        for index, question in enumerate(selected_questions, start=1):
+            answer_doc.add_paragraph(f"Câu {index}: {normalize_question_text(question.question)}")
+            for label in ["A", "B", "C", "D"]:
+                option = question.options.get(label)
+                if option is None:
+                    continue
+                
+                paragraph = answer_doc.add_paragraph(f"{label}. {option.text}")
+                
+                # Bold the correct answer
+                if label == pick_single_label(question.highlighted_labels):
+                    for run in paragraph.runs:
+                        run.bold = True
+            
+            answer_doc.add_paragraph("")
+
+        answer_doc.save(answer_file)
+
+    return QuizGenerateResult(
+        source_file=source_file.name,
+        requested_count=selected_count,
+        generated_count=selected_count,
+        quiz_output_file=str(quiz_file),
+    )

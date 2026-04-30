@@ -7,9 +7,8 @@ hiddenimports = []
 tmp_ret = collect_all('docx')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
-
 a = Analysis(
-    ['quiz_app.py'],
+    ['quiz_cli.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -29,18 +28,17 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='QuizProcessorApp',
+    name='quiz_cli',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True, # We need console to get stdout output
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets\\quiz_app.ico'],
 )

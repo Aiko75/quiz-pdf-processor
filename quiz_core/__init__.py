@@ -1,4 +1,4 @@
-from .grading import build_wrong_questions_docx, generate_quiz_from_file, grade_quiz_files
+from .grading import build_wrong_questions_docx, generate_quiz_from_file, generate_quiz_with_range, grade_quiz_files
 from .models import (
     GradingResult,
     LineData,
@@ -15,6 +15,7 @@ from .validation import generate_validation_report_for_pdf, validate_folder, val
 __all__ = [
     "build_wrong_questions_docx",
     "generate_quiz_from_file",
+    "generate_quiz_with_range",
     "grade_quiz_files",
     "generate_validation_report_for_pdf",
     "process_folder",

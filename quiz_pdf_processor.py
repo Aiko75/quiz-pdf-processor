@@ -13,6 +13,7 @@ from quiz_core import (
     generate_validation_report_for_pdf,
     build_wrong_questions_docx,
     generate_quiz_from_file,
+    generate_quiz_with_range,
     grade_quiz_files,
     process_folder,
     validate_folder,
@@ -21,6 +22,7 @@ from quiz_core import (
 __all__ = [
     "build_wrong_questions_docx",
     "generate_quiz_from_file",
+    "generate_quiz_with_range",
     "grade_quiz_files",
     "generate_validation_report_for_pdf",
     "process_folder",
