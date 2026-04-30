@@ -7,14 +7,17 @@ import 'package:url_launcher/url_launcher.dart';
 class UpdateService {
   static const String repoOwner = 'Aiko75';
   static const String repoName = 'Auto_Handling_File';
-  static const String apiUrl = 'https://api.github.com/repos/$repoOwner/$repoName/releases/latest';
+  static const String apiUrl = 'https://api.github.com/repos/$repoOwner/$repoName/tags';
 
   static Future<Map<String, dynamic>?> checkForUpdate() async {
     try {
       final response = await http.get(Uri.parse(apiUrl));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final latestVersion = data['tag_name'] as String; // e.g., "v1.3.1"
+        final List<dynamic> tags = jsonDecode(response.body);
+        if (tags.isEmpty) return null;
+
+        final latestTag = tags.first;
+        final latestVersion = latestTag['name'] as String; // e.g., "v1.3.1"
         
         final packageInfo = await PackageInfo.fromPlatform();
         final currentVersion = 'v${packageInfo.version}';
@@ -22,14 +25,13 @@ class UpdateService {
         if (_isNewer(latestVersion, currentVersion)) {
           return {
             'version': latestVersion,
-            'url': data['html_url'],
-            'description': data['body'],
-            'assets': data['assets'],
+            'url': 'https://github.com/$repoOwner/$repoName/releases/tag/$latestVersion',
+            'description': 'Đã có bản cập nhật mới $latestVersion. Nhấn nút bên dưới để xem chi tiết và tải về.',
           };
         }
       }
     } catch (e) {
-      // Log error or handle offline
+      // Log error
     }
     return null;
   }
