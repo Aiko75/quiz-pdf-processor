@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:file_picker/file_picker.dart';
@@ -28,6 +29,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _windowHeight = 720;
   bool _darkMode = false;
   String _workspacePath = '';
+  bool _autoAdvanceQuiz = false;
+  bool _quizShortcutsEnabled = true;
+  String _examViewMode = 'list';
 
   @override
   void initState() {
@@ -43,6 +47,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _windowHeight = _settings.windowHeight;
       _darkMode = _settings.darkMode;
       _workspacePath = _settings.workspacePath;
+      _autoAdvanceQuiz = _settings.autoAdvanceQuiz;
+      _quizShortcutsEnabled = _settings.quizShortcutsEnabled;
+      _examViewMode = _settings.examViewMode;
       _loaded = true;
     });
   }
@@ -100,6 +107,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     await _settings.setShuffleEnabled(val);
                     setState(() => _shuffleEnabled = val);
                   },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: const Text('Tự động chuyển câu'),
+                  subtitle: const Text('Tự động sang câu tiếp theo ngay sau khi chọn đáp án.'),
+                  value: _autoAdvanceQuiz,
+                  onChanged: (val) async {
+                    await _settings.setAutoAdvanceQuiz(val);
+                    setState(() => _autoAdvanceQuiz = val);
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: const Text('Phím tắt làm bài'),
+                  subtitle: const Text('Sử dụng phím 0, 1, 2, 3 hoặc A, B, C, D để chọn nhanh đáp án.'),
+                  value: _quizShortcutsEnabled,
+                  onChanged: (val) async {
+                    await _settings.setQuizShortcutsEnabled(val);
+                    setState(() => _quizShortcutsEnabled = val);
+                  },
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Text('Chế độ xem danh sách bài thi:'),
+                      const SizedBox(width: 16),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'list', label: Text('Danh sách'), icon: Icon(Icons.list)),
+                          ButtonSegment(value: 'grid', label: Text('Lưới'), icon: Icon(Icons.grid_view)),
+                        ],
+                        selected: {_examViewMode},
+                        onSelectionChanged: (val) async {
+                          await _settings.setExamViewMode(val.first);
+                          setState(() => _examViewMode = val.first);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -182,28 +230,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _pickWorkspace,
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('Thay đổi thư mục'),
+                      Row(
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _pickWorkspace,
+                            icon: const Icon(Icons.folder_open),
+                            label: const Text('Thay đổi thư mục'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => Process.run('explorer.exe', [_settings.examsPath]),
+                            icon: const Icon(Icons.quiz_outlined),
+                            label: const Text('Mở Exams'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => Process.run('explorer.exe', [_settings.digitsPath]),
+                            icon: const Icon(Icons.document_scanner_outlined),
+                            label: const Text('Mở Digits'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final path = await BackupService.createBackup();
+                              if (mounted && path != null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Đã sao lưu tại: $path')),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.backup),
+                            label: const Text('Sao lưu (Zip)'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          final path = await BackupService.createBackup();
-                          if (mounted && path != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Đã sao lưu tại: $path')),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.backup),
-                        label: const Text('Sao lưu (Zip)'),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -214,7 +274,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 Text(
-                  'Quiz Processor v1.3.1',
+                  'Quiz Processor v1.4.0',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
                   textAlign: TextAlign.center,
                 ),

@@ -37,13 +37,14 @@ def main():
     parser.add_argument("--answer-file", help="File đáp án")
     parser.add_argument("--submission-file", help="File bài làm")
     parser.add_argument("--count", type=int, default=40, help="Số lượng câu tạo đề")
-    parser.add_argument("--from-q", type=int, default=1, help="Câu bắt đầu")
+    parser.add_argument("--from-q", type=int, default=0, help="Câu bắt đầu")
     parser.add_argument("--to-q", type=int, default=0, help="Câu kết thúc (0 = hết)")
     parser.add_argument("--gen-answer", action="store_true", help="Tạo file đáp án kèm theo")
     parser.add_argument("--interactive", action="store_true", help="Tạo bài thi tương tác JSON")
     parser.add_argument("--time-limit", type=int, default=0, help="Giới hạn thời gian (phút)")
     parser.add_argument("--title", help="Tên bài thi")
     parser.add_argument("--workspace", help="Đường dẫn thư mục làm việc (workspace)")
+    parser.add_argument("--folder", default="", help="Thư mục con đích trong workspace/exams")
     
     args = parser.parse_args()
     
@@ -56,7 +57,8 @@ def main():
             emit("log", message=f"Input: {input_path}")
             emit("log", message=f"Output: {output_dir}")
             
-            from quiz_pdf_processor import process_pdf_file, process_folder
+            from quiz_core.parsing import process_pdf_file
+            from quiz_core import process_folder
             
             if input_path.is_file():
                 results = [process_pdf_file(input_path, output_dir)]
@@ -129,8 +131,10 @@ def main():
                     from_question=args.from_q,
                     to_question=args.to_q if args.to_q > 0 else None,
                     interactive=args.interactive,
+                    gen_answer=args.gen_answer,
                     time_limit=args.time_limit,
-                    workspace=args.workspace
+                    workspace=args.workspace,
+                    sub_folder=args.folder
                 )
             else:
                 result = generate_quiz_from_file(
@@ -138,8 +142,10 @@ def main():
                     output_dir=output_dir,
                     question_count=args.count,
                     interactive=args.interactive,
+                    gen_answer=args.gen_answer,
                     time_limit=args.time_limit,
-                    workspace=args.workspace
+                    workspace=args.workspace,
+                    sub_folder=args.folder
                 )
             
             emit("log", message=f"Số câu tạo thực tế: {result.generated_count}")
@@ -154,13 +160,14 @@ def main():
                 source_file=input_file,
                 title=args.title if args.title else None,
                 time_limit=args.time_limit,
-                workspace=args.workspace
+                workspace=args.workspace,
+                sub_folder=args.folder
             )
             emit("log", message=f"Nhập thành công!")
             emit("result", status="success", message="Nhập đề hoàn tất", file=str(json_path))
 
         elif args.action == "preview":
-            from quiz_pdf_processor import extract_styled_lines, parse_questions
+            from quiz_core.parsing import extract_styled_lines, parse_questions
             input_file = Path(args.input).resolve()
             emit("log", message=f"Đang xem trước: {input_file.name}...")
             

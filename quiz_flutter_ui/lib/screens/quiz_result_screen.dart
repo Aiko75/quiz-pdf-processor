@@ -31,14 +31,17 @@ class QuizResultScreen extends StatelessWidget {
       }
     }
 
-    final score = questions.isEmpty ? 0.0 : (correctCount / questions.length) * 10;
+    final score = questions.isEmpty
+        ? 0.0
+        : (correctCount / questions.length) * 10;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kết quả Bài thi'),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(), // Return to ExamListScreen
+          onPressed: () =>
+              Navigator.of(context).pop(), // Return to ExamListScreen
         ),
       ),
       body: Row(
@@ -52,7 +55,11 @@ class QuizResultScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('TỔNG ĐIỂM', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
+                Text(
+                  'TỔNG ĐIỂM',
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   '${score.toStringAsFixed(2)} / 10',
@@ -75,17 +82,17 @@ class QuizResultScreen extends StatelessWidget {
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.arrow_back),
                   label: const Text('Quay lại danh sách'),
-                )
+                ),
               ],
             ),
           ),
-          
+
           // Main Content: Detailed Review
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.all(32.0),
               itemCount: questions.length,
-              separatorBuilder: (_, __) => const Divider(height: 64),
+              separatorBuilder: (_, _) => const Divider(height: 64),
               itemBuilder: (context, index) {
                 final q = questions[index];
                 final qId = q['id'];
@@ -116,50 +123,67 @@ class QuizResultScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    ...((q['options'] as Map<String, dynamic>? ?? {}).entries.map((entry) {
-                      final label = entry.key;
-                      final text = entry.value;
-                      
-                      Color? bgColor;
-                      Color? borderColor = Theme.of(context).dividerColor;
-                      
-                      if (label == correct) {
-                        bgColor = Colors.green.withOpacity(0.2);
-                        borderColor = Colors.green;
-                      } else if (label == selected && !isCorrect) {
-                        bgColor = Colors.red.withOpacity(0.2);
-                        borderColor = Colors.red;
-                      }
-                      
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0, left: 32.0),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: borderColor),
-                            borderRadius: BorderRadius.circular(8),
-                            color: bgColor,
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                '$label.',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: (label == correct || label == selected) ? borderColor : null,
-                                ),
+                    ...((q['options'] as Map<String, dynamic>? ?? {}).entries
+                        .map((entry) {
+                          final label = entry.key;
+                          final text = entry.value;
+
+                          Color? bgColor;
+                          Color? borderColor = Theme.of(context).dividerColor;
+
+                          if (label == correct) {
+                            bgColor = Colors.green.withOpacity(0.2);
+                            borderColor = Colors.green;
+                          } else if (label == selected && !isCorrect) {
+                            bgColor = Colors.red.withOpacity(0.2);
+                            borderColor = Colors.red;
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: 8.0,
+                              left: 32.0,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: borderColor),
+                                borderRadius: BorderRadius.circular(8),
+                                color: bgColor,
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(text)),
-                              if (label == correct)
-                                const Icon(Icons.check, color: Colors.green, size: 16)
-                              else if (label == selected && !isCorrect)
-                                const Icon(Icons.close, color: Colors.red, size: 16)
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList()),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    '$label.',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color:
+                                          (label == correct ||
+                                              label == selected)
+                                          ? borderColor
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text(text)),
+                                  if (label == correct)
+                                    const Icon(
+                                      Icons.check,
+                                      color: Colors.green,
+                                      size: 16,
+                                    )
+                                  else if (label == selected && !isCorrect)
+                                    const Icon(
+                                      Icons.close,
+                                      color: Colors.red,
+                                      size: 16,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        })
+                        .toList()),
                   ],
                 );
               },
@@ -183,9 +207,13 @@ class QuizResultScreen extends StatelessWidget {
           ),
           child: Text(
             count.toString(),
-            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
           ),
-        )
+        ),
       ],
     );
   }

@@ -15,8 +15,9 @@ void main() async {
   await windowManager.ensureInitialized();
 
   final settings = await SettingsService.getInstance();
+  await settings.initDefaultWorkspace();
   await settings.ensureWorkspaceExists();
-  
+
   // Load saved settings
   final width = settings.windowWidth;
   final height = settings.windowHeight;
@@ -45,7 +46,7 @@ class QuizProcessorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
-      builder: (_, mode, __) {
+      builder: (_, mode, _) {
         return MaterialApp(
           title: 'Quiz Processor',
           debugShowCheckedModeBanner: false,
@@ -107,7 +108,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               child: Image.network(
                 'https://cdn-icons-png.flaticon.com/512/3306/3306613.png',
                 height: 48,
-                errorBuilder: (_, __, ___) => const Icon(Icons.quiz, size: 48, color: Colors.deepPurple),
+                errorBuilder: (_, _, _) =>
+                    const Icon(Icons.quiz, size: 48, color: Colors.deepPurple),
               ),
             ),
             destinations: const [
@@ -126,7 +128,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 selectedIcon: Icon(Icons.auto_awesome),
                 label: Text('Tạo đề mới'),
               ),
-               NavigationRailDestination(
+              NavigationRailDestination(
                 icon: Icon(Icons.analytics_outlined),
                 selectedIcon: Icon(Icons.analytics),
                 label: Text('Phân tích'),
@@ -139,9 +141,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             ],
           ),
           const VerticalDivider(thickness: 1, width: 1),
-          Expanded(
-            child: _screens[_selectedIndex],
-          ),
+          Expanded(child: _screens[_selectedIndex]),
         ],
       ),
     );

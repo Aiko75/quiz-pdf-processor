@@ -22,10 +22,18 @@ class BackendService {
       // Trong môi trường dev, nó nằm ở thư mục cha: ../quiz_cli.py
       // Trong môi trường production, nó nằm cùng thư mục với file exe: quiz_cli.exe
       
-      final exePath = p.join(p.dirname(Platform.resolvedExecutable), 'quiz_cli.exe');
-      final scriptPath = p.join(Directory.current.parent.path, 'quiz_cli.py');
+      final appDir = p.dirname(Platform.resolvedExecutable);
+      final exePath = p.join(appDir, 'quiz_cli.exe');
       
-      String executable;
+      // Tìm kiếm script ở nhiều vị trí (cho môi trường dev)
+      final possibleScriptPaths = [
+        p.join(Directory.current.path, 'quiz_cli.py'),
+        p.join(Directory.current.path, '..', 'quiz_cli.py'),
+        p.join(Directory.current.path, '..', '..', 'quiz_cli.py'),
+        // Thêm đường dẫn tuyệt đối dựa trên vị trí workspace nếu cần
+      ];
+
+      String executable = '';
       List<String> args = [];
 
       if (await File(exePath).exists()) {
@@ -33,10 +41,24 @@ class BackendService {
         args.add('--action');
         args.add(action);
       } else {
-        executable = 'python';
-        args.add(scriptPath);
-        args.add('--action');
-        args.add(action);
+        String? foundScript;
+        for (final path in possibleScriptPaths) {
+          if (await File(path).exists()) {
+            foundScript = path;
+            break;
+          }
+        }
+
+        if (foundScript != null) {
+          executable = 'python';
+          args.add(foundScript);
+          args.add('--action');
+          args.add(action);
+        } else {
+          onError("Không tìm thấy 'quiz_cli.exe' trong thư mục ứng dụng hoặc 'quiz_cli.py' trong thư mục nguồn.\n"
+                  "Nếu bạn đang chạy bản build, hãy đảm bảo đã copy file 'quiz_cli.exe' vào cùng thư mục với ứng dụng.");
+          return;
+        }
       }
 
       if (params != null) {
@@ -56,6 +78,7 @@ class BackendService {
       // TODO: Khi đóng gói, chúng ta sẽ gọi file .exe thay vì python script
       _currentProcess = await Process.start(executable, args);
 
+      bool resultReceived = false;
       _currentProcess!.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
@@ -65,10 +88,10 @@ class BackendService {
           if (data['type'] == 'log') {
             onLog(data['message']);
           } else if (data['type'] == 'result') {
+            resultReceived = true;
             onResult(data);
           }
         } catch (e) {
-          // Nếu không phải JSON, coi như log thường
           if (line.trim().isNotEmpty) onLog(line);
         }
       });
@@ -77,12 +100,14 @@ class BackendService {
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-        if (line.trim().isNotEmpty) onError(line);
+        if (line.trim().isNotEmpty) onLog("[STDERR] $line");
       });
 
       final exitCode = await _currentProcess!.exitCode;
-      if (exitCode != 0) {
-        onError("Tiến trình kết thúc với mã lỗi: $exitCode");
+      _currentProcess = null;
+      
+      if (exitCode != 0 && !resultReceived) {
+        onError("Tiến trình lỗi (Mã: $exitCode). Kiểm tra Log để biết chi tiết.");
       }
     } catch (e) {
       onError("Không thể khởi động tiến trình: $e");

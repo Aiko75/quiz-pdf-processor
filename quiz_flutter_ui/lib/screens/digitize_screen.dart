@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../widgets/path_selector.dart';
 import '../widgets/log_console.dart';
 import '../services/backend_service.dart';
+import '../services/settings_service.dart';
 
 class DigitizeScreen extends StatefulWidget {
   const DigitizeScreen({super.key});
@@ -20,6 +21,31 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
   
   // D2/D3: File tracking
   List<Map<String, dynamic>> _files = [];
+  bool _isLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await SettingsService.getInstance();
+    setState(() {
+      _inputDir = settings.digitizeInputPath;
+      _outputDir = settings.digitizeOutputPath;
+      _isLoaded = true;
+    });
+    if (_inputDir.isNotEmpty) {
+      _scanFolder();
+    }
+  }
+
+  Future<void> _savePaths() async {
+    final settings = await SettingsService.getInstance();
+    await settings.setDigitizeInputPath(_inputDir);
+    await settings.setDigitizeOutputPath(_outputDir);
+  }
 
   void _scanFolder() {
     if (_inputDir.isEmpty || !Directory(_inputDir).existsSync()) return;
@@ -33,6 +59,7 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
           'name': f.path.split(Platform.pathSeparator).last,
           'status': 'idle', // idle, running, success, error
           'message': '',
+          'selected': true,
         }).toList();
       });
     } catch (e) {
@@ -45,7 +72,7 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
     setState(() => _isRunning = true);
     
     for (var i = 0; i < _files.length; i++) {
-      if (_files[i]['status'] == 'success') continue;
+      if (!_files[i]['selected'] || _files[i]['status'] == 'success') continue;
       await _processFile(i);
     }
     
@@ -72,7 +99,7 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
           _files[index]['status'] = res['status'] == 'success' ? 'success' : 'error';
           _files[index]['message'] = res['message'] ?? '';
         });
-        completer.complete();
+        if (!completer.isCompleted) completer.complete();
       },
       onError: (err) {
         setState(() {
@@ -80,7 +107,7 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
           _files[index]['message'] = err;
           _logs.add('[LỖI] $err');
         });
-        completer.complete();
+        if (!completer.isCompleted) completer.complete();
       },
     );
     
@@ -98,6 +125,8 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
       onResult: (res) {
         if (res['status'] == 'success') {
           _showPreviewModal(file['name'], res['questions'] as List);
+        } else if (res['status'] == 'error') {
+          setState(() => _logs.add('[LỖI] ${res['message']}'));
         }
       },
       onError: (err) {
@@ -145,6 +174,11 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isLoaded) return const Center(child: CircularProgressIndicator());
+    
+    final selectedCount = _files.where((f) => f['selected']).length;
+    final allSelected = _files.isNotEmpty && selectedCount == _files.length;
+
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Row(
@@ -163,6 +197,7 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
                   value: _inputDir,
                   onSelected: (val) {
                     setState(() => _inputDir = val);
+                    _savePaths();
                     _scanFolder();
                   },
                 ),
@@ -170,15 +205,18 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
                 PathSelector(
                   label: 'Thư mục Output (DOCX)',
                   value: _outputDir,
-                  onSelected: (val) => setState(() => _outputDir = val),
+                  onSelected: (val) {
+                    setState(() => _outputDir = val);
+                    _savePaths();
+                  },
                 ),
                 const SizedBox(height: 24),
                 Row(
                   children: [
                     FilledButton.icon(
-                      onPressed: _isRunning || _files.isEmpty ? null : _processAll,
+                      onPressed: _isRunning || selectedCount == 0 ? null : _processAll,
                       icon: const Icon(Icons.play_arrow),
-                      label: const Text('Bắt đầu xử lý tất cả'),
+                      label: Text('Xử lý $selectedCount file được chọn'),
                     ),
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
@@ -189,8 +227,29 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                Text('Danh sách file PDF (${_files.length})', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Danh sách file PDF (${_files.length})', style: Theme.of(context).textTheme.titleMedium),
+                    if (_files.isNotEmpty)
+                      Row(
+                        children: [
+                          const Text('Chọn tất cả', style: TextStyle(fontSize: 13)),
+                          Checkbox(
+                            value: allSelected,
+                            onChanged: (val) {
+                              setState(() {
+                                for (var f in _files) {
+                                  f['selected'] = val ?? false;
+                                }
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Expanded(
                   child: Card(
                     child: ListView.builder(
@@ -198,7 +257,18 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
                       itemBuilder: (context, i) {
                         final f = _files[i];
                         return ListTile(
-                          leading: _buildStatusIcon(f['status']),
+                          leading: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Checkbox(
+                                value: f['selected'],
+                                onChanged: _isRunning ? null : (val) {
+                                  setState(() => f['selected'] = val ?? false);
+                                },
+                              ),
+                              _buildStatusIcon(f['status']),
+                            ],
+                          ),
                           title: Text(f['name']),
                           subtitle: f['message'].isNotEmpty ? Text(f['message'], style: const TextStyle(fontSize: 11, color: Colors.red)) : null,
                           trailing: Row(
