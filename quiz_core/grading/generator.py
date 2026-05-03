@@ -119,9 +119,23 @@ def generate_quiz_with_range(
     if not questions:
         raise ValueError("Không đọc được câu hỏi từ file nguồn")
 
-    start_idx = max(0, from_question - 1)
-    end_idx = min(len(questions), to_question if to_question else len(questions))
-    selected_questions = questions[start_idx:end_idx]
+    # Filter questions based on logical index (STT)
+    filtered_questions = []
+    for i, q in enumerate(questions, 1):
+        # Use logical_index if available, otherwise fallback to list position
+        q_idx = q.logical_index if q.logical_index is not None else i
+        
+        # Check if q_idx is within the range
+        in_range = True
+        if from_question > 0 and q_idx < from_question:
+            in_range = False
+        if to_question and q_idx > to_question:
+            in_range = False
+            
+        if in_range:
+            filtered_questions.append(q)
+            
+    selected_questions = filtered_questions
     selected_count = len(selected_questions)
 
     output_dir.mkdir(parents=True, exist_ok=True)

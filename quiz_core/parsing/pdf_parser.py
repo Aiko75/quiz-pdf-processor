@@ -76,6 +76,7 @@ def parse_pdf_questions_for_grading(pdf_file: Path) -> List[QuizQuestionState]:
                 highlighted.append(opt.label)
         result.append(QuizQuestionState(
             question=q.question,
+            logical_index=q.logical_index,
             options=options_map,
             highlighted_labels=highlighted
         ))

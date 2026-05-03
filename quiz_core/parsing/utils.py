@@ -108,6 +108,18 @@ def normalize_question_text(text: str) -> str:
             
     return text
 
+def extract_logical_index(text: str) -> Optional[int]:
+    if not text: return None
+    # Standard prefix: "Câu 123" or "Question 123"
+    match = re.search(r"^(?:Câu|Question)\s*(\d+)", text, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    # Weak prefix: "123." or "123)"
+    match = re.search(r"^(\d+)[\.:)]", text)
+    if match:
+        return int(match.group(1))
+    return None
+
 def normalize_question_key(text: str) -> str:
     text = normalize_question_text(text)
     return re.sub(r"[^a-zA-Z0-9\u00C0-\u1EF9]", "", text).lower()

@@ -27,6 +27,7 @@ class OptionData:
 @dataclass
 class QuestionData:
     question: str = ""
+    logical_index: Optional[int] = None
     options: List[OptionData] = field(default_factory=list)
     answer_label: Optional[str] = None
     page_number: int = -1
@@ -77,6 +78,7 @@ class QuizOptionState:
 @dataclass
 class QuizQuestionState:
     question: str
+    logical_index: Optional[int] = None
     options: Dict[str, QuizOptionState] = field(default_factory=dict)
     highlighted_labels: List[str] = field(default_factory=list)
 

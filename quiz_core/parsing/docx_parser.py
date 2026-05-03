@@ -5,7 +5,7 @@ import docx
 from docx.shared import Pt
 from .patterns import QUESTION_PATTERN, QUESTION_PREFIX_ONLY_PATTERN
 from .core import match_option_line
-from .utils import normalize_question_text
+from .utils import normalize_question_text, extract_logical_index
 from ..models import QuestionData, QuizQuestionState, QuizOptionState
 
 def write_output_files(questions: List[QuestionData], input_file: Path, output_dir: Path) -> None:
@@ -100,7 +100,8 @@ def parse_docx_questions_for_grading(docx_path: Path) -> List[QuizQuestionState]
             if current_q:
                 finalize_current_q(current_q)
                 questions.append(current_q)
-            current_q = QuizQuestionState(question=text, options={}, highlighted_labels=[])
+            l_idx = extract_logical_index(text)
+            current_q = QuizQuestionState(question=text, options={}, highlighted_labels=[], logical_index=l_idx)
             continue
             
         opt_match = match_option_line(text)

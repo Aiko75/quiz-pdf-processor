@@ -7,7 +7,7 @@ from .patterns import (
 )
 from .utils import (
     _normalize_text, clean_text_noise, repair_fragmented_text, 
-    is_lms_noise_line, order_options, normalize_question_text
+    is_lms_noise_line, order_options, normalize_question_text, extract_logical_index
 )
 from ..models import LineData, OptionData, QuestionData
 
@@ -132,6 +132,7 @@ def parse_questions(lines: List[LineData]) -> List[QuestionData]:
                 if (has_prefix or len(current_question_text) > 30) and not is_header:
                     question = QuestionData(
                         question=current_question_text,
+                        logical_index=extract_logical_index(current_question_text),
                         page_number=current_question_meta.page_number if current_question_meta else line.page_number,
                         x0=current_question_meta.x0 if current_question_meta else line.x0,
                         y0=current_question_meta.y0 if current_question_meta else line.y0,
