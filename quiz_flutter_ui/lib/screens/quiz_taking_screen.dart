@@ -259,7 +259,9 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
 
     if (_autoAdvance && _currentIndex < _questions.length - 1) {
       Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) setState(() => _currentIndex++);
+        if (mounted && _currentIndex < _questions.length - 1) {
+          setState(() => _currentIndex++);
+        }
       });
     }
   }
