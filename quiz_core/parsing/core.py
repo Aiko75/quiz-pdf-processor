@@ -201,11 +201,20 @@ def parse_questions(lines: List[LineData]) -> List[QuestionData]:
                             lines_consumed = offset + 1
                             break
             
+            is_line_highlighted = False
+            for j in range(lines_consumed):
+                if i + j < len(lines) and lines[i + j].is_highlighted:
+                    is_line_highlighted = True
+                    break
+            
+            if is_line_highlighted:
+                current_correct_label = label
+            
             current_options.append(
                 OptionData(
                     label=label,
                     text=repair_fragmented_text(option_text),
-                    emphasized=(label == current_correct_label),
+                    emphasized=(label == current_correct_label) or is_line_highlighted,
                     is_bold=line.is_bold or (lines_consumed == 2 and lines[i + 1].is_bold),
                     color_int=line.color_int,
                     page_number=line.page_number,

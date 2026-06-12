@@ -13,6 +13,28 @@ def extract_styled_lines(pdf_path: Path) -> List[LineData]:
     lines: List[LineData] = []
     try:
         for page_index, page in enumerate(document, start=1):
+            # Gather highlight rectangles from page drawings and annotations
+            highlights = []
+            
+            # 1. From drawings (e.g. Word highlighted rectangles exported to PDF)
+            drawings = page.get_drawings()
+            for d in drawings:
+                if d.get("type") in ("f", "fs") and d.get("fill") is not None:
+                    fill = d["fill"]
+                    if len(fill) == 3:
+                        r, g, b = fill
+                        # Light highlight colors have high sum of RGB values
+                        if r + g + b > 1.2:
+                            highlights.append(d["rect"])
+            
+            # 2. From standard PDF annotations (if any)
+            annots = page.annots()
+            if annots:
+                for annot in annots:
+                    # 8 = Highlight, 9 = Underline, 10 = Squiggly, 11 = StrikeOut
+                    if annot.type[0] in (8, 9, 10, 11):
+                        highlights.append(annot.rect)
+            
             page_dict = page.get_text("dict")
             for block in page_dict.get("blocks", []):
                 if block.get("type") != 0: continue
@@ -23,6 +45,18 @@ def extract_styled_lines(pdf_path: Path) -> List[LineData]:
                         bold = "bold" in span.get("font", "").lower()
                         color = span.get("color", 0)
                         bbox = span.get("bbox", (0, 0, 0, 0))
+                        
+                        # Check intersection with highlight areas
+                        is_highlighted = False
+                        span_rect = fitz.Rect(bbox)
+                        for rect in highlights:
+                            if span_rect.intersects(rect):
+                                intersect_rect = span_rect & rect
+                                # Area of intersection should be at least 20% of span's area
+                                if intersect_rect.get_area() > 0.2 * span_rect.get_area():
+                                    is_highlighted = True
+                                    break
+                                    
                         lines.append(
                             LineData(
                                 text=text,
@@ -31,6 +65,7 @@ def extract_styled_lines(pdf_path: Path) -> List[LineData]:
                                 page_number=page_index,
                                 x0=float(bbox[0]),
                                 y0=float(bbox[1]),
+                                is_highlighted=is_highlighted,
                             )
                         )
     finally:

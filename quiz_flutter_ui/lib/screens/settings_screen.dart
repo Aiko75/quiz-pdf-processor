@@ -32,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoAdvanceQuiz = false;
   bool _quizShortcutsEnabled = true;
   String _examViewMode = 'list';
+  Map<String, String> _keyMappings = {};
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _autoAdvanceQuiz = _settings.autoAdvanceQuiz;
       _quizShortcutsEnabled = _settings.quizShortcutsEnabled;
       _examViewMode = _settings.examViewMode;
+      _keyMappings = _settings.keyMappings;
       _loaded = true;
     });
   }
@@ -150,6 +152,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ---- Phím tắt ----
+          Text('Phím tắt bàn phím', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.primary)),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  const Text('Tùy chỉnh phím bấm cho các thao tác. Nhập ký tự bạn muốn sử dụng.'),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _buildKeyMapInput('A', 'Phím A'),
+                      const SizedBox(width: 12),
+                      _buildKeyMapInput('B', 'Phím B'),
+                      const SizedBox(width: 12),
+                      _buildKeyMapInput('C', 'Phím C'),
+                      const SizedBox(width: 12),
+                      _buildKeyMapInput('D', 'Phím D'),
+                      const SizedBox(width: 12),
+                      _buildKeyMapInput('E', 'Phím E'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _buildKeyMapInput('Flag', 'Phím Gắn cờ', flex: 2),
+                      const Spacer(flex: 3),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -310,6 +349,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildKeyMapInput(String label, String hint, {int flex = 1}) {
+    return Expanded(
+      flex: flex,
+      child: TextField(
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          border: const OutlineInputBorder(),
+          isDense: true,
+          counterText: "",
+        ),
+        controller: TextEditingController(text: _keyMappings[label] ?? ''),
+        maxLength: 1,
+        onChanged: (val) async {
+          if (val.isNotEmpty) {
+            _keyMappings[label] = val;
+            await _settings.setKeyMappings(_keyMappings);
+          }
+        },
       ),
     );
   }

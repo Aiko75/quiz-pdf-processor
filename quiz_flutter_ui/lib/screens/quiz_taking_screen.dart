@@ -36,6 +36,8 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
   bool _shortcutsEnabled = true;
   final FocusNode _focusNode = FocusNode();
 
+  Map<String, String> _keyMappings = {};
+
   int get _timeLimitMinutes => widget.examData['time_limit'] ?? 0;
 
   @override
@@ -46,6 +48,9 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
 
   Future<void> _initQuestions() async {
     final settings = await SettingsService.getInstance();
+    setState(() {
+      _keyMappings = settings.keyMappings;
+    });
     final rawQuestions = List<dynamic>.from(widget.examData['questions'] ?? []);
 
     // Check for auto-save first
@@ -224,6 +229,7 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
           builder: (context) => QuizResultScreen(
             examData: widget.examData,
             userAnswers: _selectedAnswers,
+            flaggedQuestions: _flaggedQuestions,
           ),
         ),
       );
@@ -271,6 +277,28 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
 
     final key = event.logicalKey;
 
+    // Helper to check if key matches a label
+    bool matches(String label) {
+      final targetKeyStr = _keyMappings[label];
+      if (targetKeyStr == null || targetKeyStr.isEmpty) return false;
+
+      final target = targetKeyStr.toUpperCase();
+
+      // Check physical character (e.g. '1')
+      if (event.character?.toUpperCase() == target) return true;
+
+      // Check key label (e.g. '1' or 'Numpad 1')
+      String keyLabel = key.keyLabel.toUpperCase();
+      if (keyLabel == target) return true;
+
+      // Handle Numpad prefix
+      if (keyLabel.startsWith('NUMPAD ')) {
+        if (keyLabel.replaceFirst('NUMPAD ', '') == target) return true;
+      }
+
+      return false;
+    }
+
     // Navigation
     if (key == LogicalKeyboardKey.arrowLeft && _currentIndex > 0) {
       setState(() => _currentIndex--);
@@ -287,35 +315,39 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
     }
 
     // Answers
-    String? answerLabel;
-    if (key == LogicalKeyboardKey.digit1 ||
-        key == LogicalKeyboardKey.keyA ||
-        key == LogicalKeyboardKey.numpad1) {
-      answerLabel = 'A';
-    } else if (key == LogicalKeyboardKey.digit2 ||
-        key == LogicalKeyboardKey.keyB ||
-        key == LogicalKeyboardKey.numpad2)
-      answerLabel = 'B';
-    else if (key == LogicalKeyboardKey.digit3 ||
-        key == LogicalKeyboardKey.keyC ||
-        key == LogicalKeyboardKey.numpad3)
-      answerLabel = 'C';
-    else if (key == LogicalKeyboardKey.digit4 ||
-        key == LogicalKeyboardKey.keyD ||
-        key == LogicalKeyboardKey.numpad4)
-      answerLabel = 'D';
-    else if (key == LogicalKeyboardKey.digit5 ||
-        key == LogicalKeyboardKey.keyE ||
-        key == LogicalKeyboardKey.numpad5)
-      answerLabel = 'E';
-    // Support 0-3 as requested by user if they prefer 0-indexed
-    else if (key == LogicalKeyboardKey.digit0 ||
-        key == LogicalKeyboardKey.numpad0)
-      answerLabel = 'A';
-
-    if (answerLabel != null) {
-      _selectAnswer(answerLabel);
+    if (matches('A')) {
+      _selectAnswer('A');
+    } else if (matches('B')) {
+      _selectAnswer('B');
+    } else if (matches('C')) {
+      _selectAnswer('C');
+    } else if (matches('D')) {
+      _selectAnswer('D');
+    } else if (matches('E')) {
+      _selectAnswer('E');
+    } else if (matches('Flag')) {
+      setState(() {
+        final qId = _questions[_currentIndex]['id'];
+        if (_flaggedQuestions.contains(qId)) {
+          _flaggedQuestions.remove(qId);
+        } else {
+          _flaggedQuestions.add(qId);
+        }
+      });
+      _autoSave();
     }
+
+    // Legacy/Hardcoded support for A-E if not mapped
+    if (key == LogicalKeyboardKey.keyA) {
+      _selectAnswer('A');
+    } else if (key == LogicalKeyboardKey.keyB)
+      _selectAnswer('B');
+    else if (key == LogicalKeyboardKey.keyC)
+      _selectAnswer('C');
+    else if (key == LogicalKeyboardKey.keyD)
+      _selectAnswer('D');
+    else if (key == LogicalKeyboardKey.keyE)
+      _selectAnswer('E');
   }
 
   @override

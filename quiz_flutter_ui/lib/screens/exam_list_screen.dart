@@ -1164,11 +1164,12 @@ class _HistoryTabState extends State<_HistoryTab> {
       grouped[key]!.add(item);
     }
 
-    final sortedKeys = grouped.keys.toList()..sort((a, b) {
-      if (a == 'Khác') return 1;
-      if (b == 'Khác') return -1;
-      return a.compareTo(b);
-    });
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == 'Khác') return 1;
+        if (b == 'Khác') return -1;
+        return a.compareTo(b);
+      });
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -1204,14 +1205,17 @@ class _HistoryTabState extends State<_HistoryTab> {
                       child: Row(
                         children: [
                           Icon(
-                            folderName == 'Khác' ? Icons.category : Icons.folder_open,
+                            folderName == 'Khác'
+                                ? Icons.category
+                                : Icons.folder_open,
                             size: 20,
                             color: Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(width: 8),
                           Text(
                             folderName,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: Theme.of(context).colorScheme.primary,
                                 ),
@@ -1252,13 +1256,15 @@ class _HistoryTabState extends State<_HistoryTab> {
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () async {
                             try {
-                              final answers = jsonDecode(item['answers_json'] ?? '{}')
-                                  as Map<String, dynamic>;
+                              final answers =
+                                  jsonDecode(item['answers_json'] ?? '{}')
+                                      as Map<String, dynamic>;
                               final userAnswers = answers.map(
                                 (k, v) => MapEntry(int.parse(k), v.toString()),
                               );
 
-                              final settings = await SettingsService.getInstance();
+                              final settings =
+                                  await SettingsService.getInstance();
                               final examsDir = Directory(settings.examsPath);
                               final examFiles = examsDir
                                   .listSync(recursive: true)
@@ -1301,14 +1307,16 @@ class _HistoryTabState extends State<_HistoryTab> {
                             } catch (e) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Lỗi khi mở chi tiết: $e')),
+                                  SnackBar(
+                                    content: Text('Lỗi khi mở chi tiết: $e'),
+                                  ),
                                 );
                               }
                             }
                           },
                         ),
                       );
-                    }).toList(),
+                    }),
                   ],
                 );
               },

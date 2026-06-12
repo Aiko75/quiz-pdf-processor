@@ -10,6 +10,7 @@ class LineData:
     page_number: int
     x0: float
     y0: float
+    is_highlighted: bool = False
 
 
 @dataclass

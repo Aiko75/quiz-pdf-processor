@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class QuizResultScreen extends StatefulWidget {
   final Map<String, dynamic> examData;
   final Map<int, String> userAnswers;
+  final Set<int> flaggedQuestions;
 
   const QuizResultScreen({
     super.key,
     required this.examData,
     required this.userAnswers,
+    this.flaggedQuestions = const {},
   });
 
   @override
@@ -15,7 +17,7 @@ class QuizResultScreen extends StatefulWidget {
 }
 
 class _QuizResultScreenState extends State<QuizResultScreen> {
-  String _filter = 'all'; // 'all', 'wrong', 'unanswered'
+  String _filter = 'all'; // 'all', 'wrong', 'unanswered', 'flagged'
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +25,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
     int correctCount = 0;
     int wrongCount = 0;
     int unansweredCount = 0;
+    int flaggedCount = widget.flaggedQuestions.length;
 
     final List<dynamic> filteredQuestions = [];
 
@@ -30,6 +33,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
       final qId = q['id'];
       final correct = q['correct_answer'];
       final selected = widget.userAnswers[qId];
+      final isFlagged = widget.flaggedQuestions.contains(qId);
 
       bool isCorrect = false;
       bool isUnanswered = false;
@@ -49,6 +53,8 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
       } else if (_filter == 'wrong' && !isCorrect && !isUnanswered) {
         filteredQuestions.add(q);
       } else if (_filter == 'unanswered' && isUnanswered) {
+        filteredQuestions.add(q);
+      } else if (_filter == 'flagged' && isFlagged) {
         filteredQuestions.add(q);
       }
     }
@@ -98,6 +104,8 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                 const SizedBox(height: 12),
                 _buildStatRow('Chưa làm', unansweredCount, Colors.orange),
                 const SizedBox(height: 12),
+                _buildStatRow('Đặt cờ', flaggedCount, Colors.purple),
+                const SizedBox(height: 12),
                 _buildStatRow('Tổng số câu', allQuestions.length, Colors.blue),
                 
                 const Padding(
@@ -113,6 +121,8 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                 _buildFilterButton('Các câu sai', 'wrong', Icons.cancel, color: Colors.red),
                 const SizedBox(height: 8),
                 _buildFilterButton('Chưa làm', 'unanswered', Icons.remove_circle, color: Colors.orange),
+                const SizedBox(height: 8),
+                _buildFilterButton('Các câu gắn cờ', 'flagged', Icons.flag, color: Colors.purple),
 
                 const Spacer(),
                 FilledButton.icon(
@@ -157,9 +167,20 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                               const Icon(Icons.cancel, color: Colors.red),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                'Câu ${actualIndex + 1}: ${q['question']}',
-                                style: Theme.of(context).textTheme.titleLarge,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Câu ${actualIndex + 1}: ${q['question']}',
+                                      style: Theme.of(context).textTheme.titleLarge,
+                                    ),
+                                  ),
+                                  if (widget.flaggedQuestions.contains(qId))
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 8.0),
+                                      child: Icon(Icons.flag, color: Colors.purple),
+                                    ),
+                                ],
                               ),
                             ),
                           ],

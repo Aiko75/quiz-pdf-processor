@@ -24,10 +24,10 @@ LMS_OPTION_WITH_TEXT_PATTERN = re.compile(r"^([a-eA-E])\.\s+(.+)$")
 
 HEADER_NOISE_PATTERN = re.compile(r"^(Chương\s*\d+\s*:|LTTN\s*\d+\s*:?)$", re.IGNORECASE)
 INLINE_NOISE_PATTERN = re.compile(
-    r"(Downloaded\s+by|binhprodotcom@gmail\.com|l[O0]M[oO]ARcPSD\|?\d*).*$",
+    r"(Downloaded\s+by|binhprodotcom@gmail\.com|l[O0]M[oO]ARcPSD\|?\d*|messages\.[a-zA-Z0-9_]+).*$",
     re.IGNORECASE,
 )
 FULL_NOISE_PATTERN = re.compile(
-    r"^(Downloaded\s+by.*|\s*\d+\s*/\s*\d+\s*|\s*Trang\s*\d+\s*|https?://.*|\d{1,2}/\d{1,2}/\d{2,4},.*|.*Xem lại lần làm thử.*)$",
+    r"^(Downloaded\s+by.*|\s*\d+\s*/\s*\d+\s*|\s*Trang\s*\d+\s*|https?://.*|\d{1,2}/\d{1,2}/\d{2,4},.*|.*Xem lại lần làm thử.*|messages\..*|l[O0]M[oO]ARcPSD.*)$",
     re.IGNORECASE,
 )

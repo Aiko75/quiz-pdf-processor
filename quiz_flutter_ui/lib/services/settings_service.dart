@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -123,6 +124,38 @@ class SettingsService {
         .whereType<Directory>()
         .map((d) => p.basename(d.path))
         .toList();
+  }
+
+  // --- Keyboard Shortcuts ---
+  Map<String, String> get keyMappings {
+    final String? jsonStr = _prefs?.getString('key_mappings');
+    if (jsonStr == null) {
+      // Default mappings
+      return {
+        'A': '1',
+        'B': '2',
+        'C': '3',
+        'D': '4',
+        'E': '5',
+        'Flag': '6',
+      };
+    }
+    try {
+      return Map<String, String>.from(json.decode(jsonStr));
+    } catch (e) {
+      return {
+        'A': '1',
+        'B': '2',
+        'C': '3',
+        'D': '4',
+        'E': '5',
+        'Flag': '6',
+      };
+    }
+  }
+
+  Future<void> setKeyMappings(Map<String, String> mappings) async {
+    await _prefs?.setString('key_mappings', json.encode(mappings));
   }
 
   // Ensure workspace exists
