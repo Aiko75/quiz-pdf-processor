@@ -18,6 +18,7 @@ from quiz_core import (
     import_quiz_file,
     process_folder,
     validate_folder,
+    double_check_quiz_structure,
 )
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "import_quiz_file",
     "process_folder",
     "validate_folder",
+    "double_check_quiz_structure",
     "LineData",
     "OptionData",
     "QuestionData",

@@ -10,7 +10,7 @@ from .models import (
     ValidationResult,
 )
 from .parsing import process_folder
-from .validation import generate_validation_report_for_pdf, validate_folder, validate_output_for_pdf
+from .validation import generate_validation_report_for_pdf, validate_folder, validate_output_for_pdf, double_check_quiz_structure
 
 __all__ = [
     "build_wrong_questions_docx",
@@ -22,6 +22,7 @@ __all__ = [
     "process_folder",
     "validate_folder",
     "validate_output_for_pdf",
+    "double_check_quiz_structure",
     "GradingResult",
     "LineData",
     "OptionData",

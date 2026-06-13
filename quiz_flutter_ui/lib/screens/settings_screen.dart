@@ -123,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Phím tắt làm bài'),
-                  subtitle: const Text('Sử dụng phím 0, 1, 2, 3 hoặc A, B, C, D để chọn nhanh đáp án.'),
+                  subtitle: const Text('Dùng phím số hoặc chữ để chọn nhanh đáp án. Phím 4 = Gach́ bỏ, Phím 8 = Xem cuộn.'),
                   value: _quizShortcutsEnabled,
                   onChanged: (val) async {
                     await _settings.setQuizShortcutsEnabled(val);
@@ -165,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  const Text('Tùy chỉnh phím bấm cho các thao tác. Nhập ký tự bạn muốn sử dụng.'),
+                  const Text('Tùy chỉnh phím bấm cho các thao tác. Nhập ký tự bạn muốn sử dụng.\nLưu ý: Phím 4 đã được dùng cho "Gach́ bỏ đáp án", Phím 8 cho "Xem cuộn". Tránh dùng 2 phím này.'),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -186,6 +186,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildKeyMapInput('Flag', 'Phím Gắn cờ', flex: 2),
                       const Spacer(flex: 3),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        const defaults = {
+                          'A': '1', 'B': '2', 'C': '3',
+                          'D': '5', 'E': '8', 'Flag': '6',
+                        };
+                        final messenger = ScaffoldMessenger.of(context);
+                        await _settings.setKeyMappings(defaults);
+                        setState(() => _keyMappings = Map.from(defaults));
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Đã đặt lại phím tắt về mặc định.')),
+                        );
+                      },
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Đặt lại mặc định'),
+                    ),
                   ),
                 ],
               ),

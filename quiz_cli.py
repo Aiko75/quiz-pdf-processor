@@ -31,7 +31,7 @@ def format_question_list(items):
 
 def main():
     parser = argparse.ArgumentParser(description="Quiz Processor CLI for Flutter UI")
-    parser.add_argument("--action", required=True, choices=["process", "validate", "report", "grade", "generate", "import", "preview"])
+    parser.add_argument("--action", required=True, choices=["process", "validate", "report", "grade", "generate", "import", "preview", "doublecheck", "add_feedback"])
     parser.add_argument("--input", help="Thư mục hoặc file đầu vào")
     parser.add_argument("--output", help="Thư mục đầu ra")
     parser.add_argument("--answer-file", help="File đáp án")
@@ -45,6 +45,8 @@ def main():
     parser.add_argument("--title", help="Tên bài thi")
     parser.add_argument("--workspace", help="Đường dẫn thư mục làm việc (workspace)")
     parser.add_argument("--folder", default="", help="Thư mục con đích trong workspace/exams")
+    parser.add_argument("--question-index", type=int, help="Chỉ số câu hỏi báo lỗi")
+    parser.add_argument("--message", help="Mô tả lỗi câu hỏi")
     
     args = parser.parse_args()
     
@@ -184,6 +186,60 @@ def main():
                 })
             
             emit("result", status="success", questions=preview_data)
+
+        elif args.action == "doublecheck":
+            ans_file = Path(args.answer_file).resolve()
+            emit("log", message="=== BẮT ĐẦU KIỂM ĐỊNH CẤU TRÚC CÂU ===")
+            emit("log", message=f"File nguồn: {ans_file}")
+            
+            from quiz_core.parsing import parse_questions_for_grading
+            from quiz_core.validation import double_check_quiz_structure, save_auto_feedback_to_loop
+            
+            questions = parse_questions_for_grading(ans_file)
+            if not questions:
+                raise ValueError("Không đọc được câu hỏi nào từ file nguồn")
+                
+            errors = double_check_quiz_structure(questions)
+            if args.workspace:
+                save_auto_feedback_to_loop(args.workspace, errors, str(ans_file))
+            
+            emit("log", message=f"Tổng số câu kiểm tra: {len(questions)}")
+            
+            if not errors:
+                emit("log", message="[OK] Cấu trúc tất cả các câu hỏi đều hợp lệ!")
+                emit("result", status="success", message="Kiểm định hoàn tất. Không phát hiện lỗi cấu trúc.")
+            else:
+                total_errors = sum(len(e["errors"]) for e in errors)
+                emit("log", message=f"[CẢNH BÁO] Phát hiện {len(errors)} câu lỗi cấu trúc (Tổng cộng {total_errors} lỗi):")
+                
+                for err in errors:
+                    idx = err["question_index"]
+                    log_idx = err["logical_index"] if err["logical_index"] is not None else idx
+                    emit("log", message=f"\n--- Câu {idx} (STT trong file: {log_idx}) ---")
+                    for q_err in err["errors"]:
+                        emit("log", message=f"Lỗi: {q_err['message']}")
+                    emit("log", message=f"Nội dung câu hỏi: {err['question_text']}")
+                    emit("log", message="Các đáp án nhận diện được:")
+                    for lbl, txt in sorted(err["options"].items()):
+                        emit("log", message=f"  {lbl}. {txt}")
+                
+                emit("result", status="success", message=f"Kiểm định hoàn tất. Phát hiện {len(errors)} câu lỗi cấu trúc.")
+
+        elif args.action == "add_feedback":
+            ans_file = Path(args.answer_file).resolve()
+            q_idx = int(args.question_index) if args.question_index is not None else 0
+            msg = args.message if args.message else ""
+            
+            emit("log", message="=== BÁO LỖI CÂU HỎI THỦ CÔNG ===")
+            emit("log", message=f"File nguồn: {ans_file.name}")
+            emit("log", message=f"Câu số: {q_idx}")
+            emit("log", message=f"Nội dung lỗi: {msg}")
+            
+            from quiz_core.validation import add_manual_feedback
+            add_manual_feedback(args.workspace, str(ans_file), q_idx, msg)
+            
+            emit("log", message="[OK] Đã ghi nhận báo lỗi thành công!")
+            emit("result", status="success", message="Ghi nhận báo lỗi thành công.")
 
     except Exception as e:
         emit("result", status="error", message=str(e), traceback=traceback.format_exc())

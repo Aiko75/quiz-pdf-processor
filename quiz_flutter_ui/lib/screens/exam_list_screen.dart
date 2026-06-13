@@ -370,7 +370,7 @@ class _InteractiveExamListState extends State<_InteractiveExamList> {
         'input': filePath ?? '',
         'title': titleController.text,
         'time-limit': timeLimit.toString(),
-        'folder': targetFolder,
+        if (targetFolder.isNotEmpty) 'folder': targetFolder,
       },
       onLog: (_) {},
       onResult: (res) {
@@ -613,6 +613,12 @@ class _InteractiveExamListState extends State<_InteractiveExamList> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                FilledButton.tonalIcon(
+                  onPressed: _createFolder,
+                  icon: const Icon(Icons.create_new_folder),
+                  label: const Text('Thư mục mới'),
+                ),
+                const SizedBox(width: 8),
                 FilledButton.tonalIcon(
                   onPressed: () => _showImportDialog(context),
                   icon: const Icon(Icons.upload_file),
@@ -1046,45 +1052,80 @@ class _FileGradingWidgetState extends State<_FileGradingWidget> {
                 ),
                 if (_scoreResult != null) ...[
                   const SizedBox(width: 24),
-                  Expanded(
-                    flex: 1,
-                    child: Card(
-                      elevation: 4,
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          children: [
-                            Text(
-                              'BẢNG ĐIỂM',
-                              style: Theme.of(context).textTheme.titleLarge,
+                  Builder(
+                    builder: (context) {
+                      final reportPath = _scoreResult!['report']?.toString();
+                      final hasReport = reportPath != null && reportPath.isNotEmpty;
+                      return Expanded(
+                        flex: 1,
+                        child: Card(
+                          elevation: 4,
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'BẢNG ĐIỂM',
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 24),
+                                _buildScoreRow(
+                                  'Số câu đúng',
+                                  '${_scoreResult!['correct']}',
+                                  Colors.green,
+                                ),
+                                _buildScoreRow(
+                                  'Số câu sai',
+                                  '${_scoreResult!['wrong']}',
+                                  Colors.red,
+                                ),
+                                _buildScoreRow(
+                                  'Tổng số câu',
+                                  '${_scoreResult!['total']}',
+                                  Colors.blue,
+                                ),
+                                const Divider(height: 40),
+                                Text(
+                                  '${((_scoreResult!['correct'] / _scoreResult!['total']) * 10).toStringAsFixed(2)} / 10',
+                                  style: Theme.of(context).textTheme.displaySmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 24),
+                                if (hasReport) ...[
+                                  ElevatedButton.icon(
+                                    onPressed: () => Process.run('explorer.exe', [reportPath]),
+                                    icon: const Icon(Icons.description, color: Colors.red),
+                                    label: const Text('Mở báo cáo câu lỗi'),
+                                    style: ElevatedButton.styleFrom(
+                                      minimumSize: const Size(double.infinity, 40),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () => Process.run('explorer.exe', ['/select,', reportPath]),
+                                    icon: const Icon(Icons.folder_open, color: Colors.orange),
+                                    label: const Text('Hiển thị trong thư mục'),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(double.infinity, 40),
+                                    ),
+                                  ),
+                                ] else ...[
+                                  OutlinedButton.icon(
+                                    onPressed: () => Process.run('explorer.exe', [_outputDir]),
+                                    icon: const Icon(Icons.folder_open, color: Colors.blue),
+                                    label: const Text('Mở thư mục Output'),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(double.infinity, 40),
+                                    ),
+                                  ),
+                                ]
+                              ],
                             ),
-                            const SizedBox(height: 24),
-                            _buildScoreRow(
-                              'Số câu đúng',
-                              '${_scoreResult!['correct']}',
-                              Colors.green,
-                            ),
-                            _buildScoreRow(
-                              'Số câu sai',
-                              '${_scoreResult!['wrong']}',
-                              Colors.red,
-                            ),
-                            _buildScoreRow(
-                              'Tổng số câu',
-                              '${_scoreResult!['total']}',
-                              Colors.blue,
-                            ),
-                            const Divider(height: 40),
-                            Text(
-                              '${((_scoreResult!['correct'] / _scoreResult!['total']) * 10).toStringAsFixed(2)} / 10',
-                              style: Theme.of(context).textTheme.displaySmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    }
                   ),
                 ],
               ],

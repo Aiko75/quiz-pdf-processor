@@ -27,6 +27,9 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
   int _currentIndex = 0;
   final Map<int, String> _selectedAnswers = {};
   final Set<int> _flaggedQuestions = {};
+  final Map<int, Set<String>> _eliminatedAnswers = {};
+  bool _scrollMode = false;
+  int _focusedOptionIndex = 0;
   Timer? _timer;
   int _timeRemainingSeconds = 0;
   int _totalSecondsSpent = 0;
@@ -109,6 +112,13 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
           for (var id in (savedState?['flagged_questions'] as List<dynamic>)) {
             _flaggedQuestions.add(id);
           }
+          if (savedState?['eliminated_answers'] != null) {
+            (savedState?['eliminated_answers'] as Map<String, dynamic>).forEach((k, v) {
+              _eliminatedAnswers[int.parse(k)] = List<String>.from(v).toSet();
+            });
+          }
+          _scrollMode = savedState?['scroll_mode'] ?? false;
+          _focusedOptionIndex = 0;
           _currentIndex = savedState?['current_index'] ?? 0;
           _timeRemainingSeconds = savedState?['time_remaining'] ?? 0;
           _totalSecondsSpent = savedState?['total_spent'] ?? 0;
@@ -171,6 +181,10 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
           (k, v) => MapEntry(k.toString(), v),
         ),
         'flagged_questions': _flaggedQuestions.toList(),
+        'eliminated_answers': _eliminatedAnswers.map(
+          (k, v) => MapEntry(k.toString(), v.toList()),
+        ),
+        'scroll_mode': _scrollMode,
         'current_index': _currentIndex,
         'time_remaining': _timeRemainingSeconds,
         'total_spent': _totalSecondsSpent,
@@ -256,26 +270,157 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  void _selectAnswer(String label) {
-    final qId = _questions[_currentIndex]['id'];
+  void _changeQuestion(int newIndex) {
+    if (newIndex >= 0 && newIndex < _questions.length) {
+      setState(() {
+        _currentIndex = newIndex;
+        _focusedOptionIndex = 0;
+      });
+      _autoSave();
+    }
+  }
+
+  void _toggleEliminated(int questionId, String optionLabel) {
     setState(() {
-      _selectedAnswers[qId] = label;
+      if (!_eliminatedAnswers.containsKey(questionId)) {
+        _eliminatedAnswers[questionId] = {};
+      }
+      if (_eliminatedAnswers[questionId]!.contains(optionLabel)) {
+        _eliminatedAnswers[questionId]!.remove(optionLabel);
+      } else {
+        _eliminatedAnswers[questionId]!.add(optionLabel);
+        if (_selectedAnswers[questionId] == optionLabel) {
+          _selectedAnswers.remove(questionId);
+        }
+      }
+    });
+    _autoSave();
+  }
+
+  void _selectAnswer(int questionId, String label) {
+    setState(() {
+      _selectedAnswers[questionId] = label;
     });
     _autoSave();
 
-    if (_autoAdvance && _currentIndex < _questions.length - 1) {
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && _currentIndex < _questions.length - 1) {
-          setState(() => _currentIndex++);
-        }
-      });
+    if (!_scrollMode && _autoAdvance && _currentIndex < _questions.length - 1) {
+      final currentQId = _questions[_currentIndex]['id'];
+      if (questionId == currentQId) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _currentIndex < _questions.length - 1) {
+            _changeQuestion(_currentIndex + 1);
+          }
+        });
+      }
     }
+  }
+
+  Widget _buildOptionCard({
+    required Map<String, dynamic> question,
+    required String label,
+    required String text,
+    required int optionIndex,
+    required bool isFocused,
+  }) {
+    final questionId = question['id'];
+    final questionIndex = _questions.indexWhere((q) => q['id'] == questionId);
+    final isSelected = _selectedAnswers[questionId] == label;
+    final isEliminated = _eliminatedAnswers[questionId]?.contains(label) ?? false;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: InkWell(
+        onTap: () {
+          if (_currentIndex != questionIndex) {
+            setState(() {
+              _currentIndex = questionIndex;
+            });
+          }
+          setState(() {
+            _focusedOptionIndex = optionIndex;
+          });
+          if (isEliminated) {
+            _toggleEliminated(questionId, label);
+          }
+          _selectAnswer(questionId, label);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : isFocused
+                      ? Theme.of(context).colorScheme.primary.withOpacity(0.6)
+                      : Theme.of(context).dividerColor,
+              width: (isSelected || isFocused) ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            color: isSelected
+                ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)
+                : isFocused
+                    ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.15)
+                    : null,
+          ),
+          child: Row(
+            children: [
+              Radio<String>(
+                value: label,
+                groupValue: _selectedAnswers[questionId],
+                onChanged: isEliminated
+                    ? null
+                    : (val) {
+                        if (val != null) _selectAnswer(questionId, val);
+                      },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Opacity(
+                  opacity: isEliminated ? 0.4 : 1.0,
+                  child: Text(
+                    '$label. $text',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          decoration: isEliminated ? TextDecoration.lineThrough : null,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  isEliminated ? Icons.undo : Icons.strikethrough_s,
+                  size: 18,
+                  color: isEliminated ? Colors.grey : Theme.of(context).colorScheme.error.withOpacity(0.6),
+                ),
+                tooltip: isEliminated ? 'Hoàn tác gạch bỏ' : 'Gạch bỏ phương án (Phím 4)',
+                onPressed: () {
+                  if (_currentIndex != questionIndex) {
+                    setState(() {
+                      _currentIndex = questionIndex;
+                    });
+                  }
+                  setState(() {
+                    _focusedOptionIndex = optionIndex;
+                  });
+                  _toggleEliminated(questionId, label);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _handleKeyEvent(KeyEvent event) {
     if (!_shortcutsEnabled || event is! KeyDownEvent) return;
 
     final key = event.logicalKey;
+    final currentQuestion = _questions[_currentIndex];
+    final qId = currentQuestion['id'];
+    final options = (currentQuestion['options'] as Map<String, dynamic>? ?? {});
+    final optionsLength = options.length;
 
     // Helper to check if key matches a label
     bool matches(String label) {
@@ -299,16 +444,48 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
       return false;
     }
 
+    // Scroll mode toggle (Key 8 or Numpad 8)
+    if (key == LogicalKeyboardKey.digit8 || key == LogicalKeyboardKey.numpad8) {
+      setState(() {
+        _scrollMode = !_scrollMode;
+      });
+      _autoSave();
+      return;
+    }
+
+    // Option Elimination (Key 4 or Numpad 4)
+    if (key == LogicalKeyboardKey.digit4 || key == LogicalKeyboardKey.numpad4) {
+      final optionsList = options.keys.toList();
+      if (_focusedOptionIndex >= 0 && _focusedOptionIndex < optionsList.length) {
+        final optionLabel = optionsList[_focusedOptionIndex];
+        _toggleEliminated(qId, optionLabel);
+      }
+      return;
+    }
+
+    // Option Focus Navigation (Arrow Up / Down)
+    if (key == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _focusedOptionIndex = (_focusedOptionIndex - 1).clamp(0, optionsLength - 1);
+      });
+      return;
+    } else if (key == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _focusedOptionIndex = (_focusedOptionIndex + 1).clamp(0, optionsLength - 1);
+      });
+      return;
+    }
+
     // Navigation
     if (key == LogicalKeyboardKey.arrowLeft && _currentIndex > 0) {
-      setState(() => _currentIndex--);
+      _changeQuestion(_currentIndex - 1);
     } else if (key == LogicalKeyboardKey.arrowRight &&
         _currentIndex < _questions.length - 1) {
-      setState(() => _currentIndex++);
+      _changeQuestion(_currentIndex + 1);
     } else if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
       if (_currentIndex < _questions.length - 1) {
-        setState(() => _currentIndex++);
+        _changeQuestion(_currentIndex + 1);
       } else {
         _confirmSubmit();
       }
@@ -316,18 +493,17 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
 
     // Answers
     if (matches('A')) {
-      _selectAnswer('A');
+      _selectAnswer(qId, 'A');
     } else if (matches('B')) {
-      _selectAnswer('B');
+      _selectAnswer(qId, 'B');
     } else if (matches('C')) {
-      _selectAnswer('C');
+      _selectAnswer(qId, 'C');
     } else if (matches('D')) {
-      _selectAnswer('D');
+      _selectAnswer(qId, 'D');
     } else if (matches('E')) {
-      _selectAnswer('E');
+      _selectAnswer(qId, 'E');
     } else if (matches('Flag')) {
       setState(() {
-        final qId = _questions[_currentIndex]['id'];
         if (_flaggedQuestions.contains(qId)) {
           _flaggedQuestions.remove(qId);
         } else {
@@ -339,15 +515,15 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
 
     // Legacy/Hardcoded support for A-E if not mapped
     if (key == LogicalKeyboardKey.keyA) {
-      _selectAnswer('A');
+      _selectAnswer(qId, 'A');
     } else if (key == LogicalKeyboardKey.keyB)
-      _selectAnswer('B');
+      _selectAnswer(qId, 'B');
     else if (key == LogicalKeyboardKey.keyC)
-      _selectAnswer('C');
+      _selectAnswer(qId, 'C');
     else if (key == LogicalKeyboardKey.keyD)
-      _selectAnswer('D');
+      _selectAnswer(qId, 'D');
     else if (key == LogicalKeyboardKey.keyE)
-      _selectAnswer('E');
+      _selectAnswer(qId, 'E');
   }
 
   @override
@@ -368,6 +544,19 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
         appBar: AppBar(
           title: Text(widget.examData['title'] ?? 'Bài thi trực tuyến'),
           actions: [
+            IconButton.filledTonal(
+              isSelected: _scrollMode,
+              onPressed: () {
+                setState(() {
+                  _scrollMode = !_scrollMode;
+                });
+                _autoSave();
+              },
+              icon: const Icon(Icons.view_headline),
+              selectedIcon: const Icon(Icons.view_agenda),
+              tooltip: 'Chế độ xem cuộn toàn bộ (Phím 8)',
+            ),
+            const SizedBox(width: 8),
             if (_timeLimitMinutes > 0 && !widget.practiceMode)
               Center(
                 child: Padding(
@@ -425,7 +614,7 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
                         final isFlagged = _flaggedQuestions.contains(qId);
 
                         return InkWell(
-                          onTap: () => setState(() => _currentIndex = index),
+                          onTap: () => _changeQuestion(index),
                           child: Container(
                             decoration: BoxDecoration(
                               color: isCurrent
@@ -485,139 +674,224 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
             ),
 
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Câu ${_currentIndex + 1}:',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        IconButton.filledTonal(
-                          onPressed: () {
-                            setState(() {
-                              final qId = currentQuestion['id'];
-                              if (_flaggedQuestions.contains(qId)) {
-                                _flaggedQuestions.remove(qId);
-                              } else {
-                                _flaggedQuestions.add(qId);
-                              }
-                            });
-                            _autoSave();
-                          },
-                          icon: Icon(
-                            _flaggedQuestions.contains(currentQuestion['id'])
-                                ? Icons.flag
-                                : Icons.flag_outlined,
-                            color:
-                                _flaggedQuestions.contains(
-                                  currentQuestion['id'],
-                                )
-                                ? Colors.orange
-                                : null,
-                          ),
-                          tooltip: 'Gắn cờ câu hỏi này',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      currentQuestion['question'] ?? '',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 32),
-                    ...((currentQuestion['options'] as Map<String, dynamic>? ??
-                            {})
-                        .entries
-                        .map((entry) {
-                          final label = entry.key;
-                          final text = entry.value;
-                          final isSelected =
-                              _selectedAnswers[currentQuestion['id']] == label;
+              child: _scrollMode
+                  ? ListView.builder(
+                      padding: const EdgeInsets.all(32.0),
+                      itemCount: _questions.length,
+                      itemBuilder: (context, index) {
+                        final question = _questions[index];
+                        final qId = question['id'];
+                        final isActive = index == _currentIndex;
 
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: InkWell(
-                              onTap: () => _selectAnswer(label),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Theme.of(context).dividerColor,
-                                    width: isSelected ? 2 : 1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  color: isSelected
-                                      ? Theme.of(context)
-                                            .colorScheme
-                                            .primaryContainer
-                                            .withOpacity(0.5)
-                                      : null,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Radio<String>(
-                                      value: label,
-                                      groupValue:
-                                          _selectedAnswers[currentQuestion['id']],
-                                      onChanged: (val) {
-                                        if (val != null) _selectAnswer(val);
-                                      },
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        '$label. $text',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                        return InkWell(
+                          onTap: () {
+                            if (_currentIndex != index) {
+                              setState(() {
+                                _currentIndex = index;
+                                _focusedOptionIndex = 0;
+                              });
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Card(
+                            margin: const EdgeInsets.only(bottom: 24.0),
+                            elevation: isActive ? 4 : 1,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: isActive
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).dividerColor.withOpacity(0.5),
+                                width: isActive ? 2 : 1,
                               ),
                             ),
-                          );
-                        })
-                        .toList()),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        FilledButton.tonalIcon(
-                          onPressed: _currentIndex > 0
-                              ? () => setState(() => _currentIndex--)
-                              : null,
-                          icon: const Icon(Icons.arrow_back),
-                          label: const Text('Câu trước'),
-                        ),
-                        if (_currentIndex < _questions.length - 1)
-                          FilledButton.icon(
-                            onPressed: () => setState(() => _currentIndex++),
-                            icon: const Icon(Icons.arrow_forward),
-                            label: const Text('Câu tiếp'),
-                          )
-                        else
-                          FilledButton.icon(
-                            onPressed: _confirmSubmit,
-                            icon: const Icon(Icons.check),
-                            label: const Text('Nộp bài ngay'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.green,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                color: isActive
+                                    ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.08)
+                                    : null,
+                              ),
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Câu ${index + 1}:',
+                                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: isActive ? Theme.of(context).colorScheme.primary : null,
+                                            ),
+                                      ),
+                                      Row(
+                                        children: [
+                                          if (isActive)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(context).colorScheme.primary,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'Đang chọn',
+                                                style: TextStyle(
+                                                  color: Theme.of(context).colorScheme.onPrimary,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: Icon(
+                                              _flaggedQuestions.contains(qId)
+                                                  ? Icons.flag
+                                                  : Icons.flag_outlined,
+                                              color: _flaggedQuestions.contains(qId) ? Colors.orange : null,
+                                            ),
+                                            tooltip: 'Gắn cờ câu hỏi này',
+                                            onPressed: () {
+                                              setState(() {
+                                                if (_flaggedQuestions.contains(qId)) {
+                                                  _flaggedQuestions.remove(qId);
+                                                } else {
+                                                  _flaggedQuestions.add(qId);
+                                                }
+                                              });
+                                              _autoSave();
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    question['question'] ?? '',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ...((question['options'] as Map<String, dynamic>? ?? {})
+                                      .entries
+                                      .toList()
+                                      .asMap()
+                                      .entries
+                                      .map((entry) {
+                                    final optIndex = entry.key;
+                                    final label = entry.value.key;
+                                    final text = entry.value.value;
+                                    final isFocused = isActive && optIndex == _focusedOptionIndex;
+
+                                    return _buildOptionCard(
+                                      question: question,
+                                      label: label,
+                                      text: text,
+                                      optionIndex: optIndex,
+                                      isFocused: isFocused,
+                                    );
+                                  }).toList()),
+                                ],
+                              ),
                             ),
                           ),
-                      ],
+                        );
+                      },
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Câu ${_currentIndex + 1}:',
+                                style: Theme.of(context).textTheme.headlineSmall,
+                              ),
+                              IconButton.filledTonal(
+                                onPressed: () {
+                                  setState(() {
+                                    final qId = currentQuestion['id'];
+                                    if (_flaggedQuestions.contains(qId)) {
+                                      _flaggedQuestions.remove(qId);
+                                    } else {
+                                      _flaggedQuestions.add(qId);
+                                    }
+                                  });
+                                  _autoSave();
+                                },
+                                icon: Icon(
+                                  _flaggedQuestions.contains(currentQuestion['id'])
+                                      ? Icons.flag
+                                      : Icons.flag_outlined,
+                                  color: _flaggedQuestions.contains(currentQuestion['id'])
+                                      ? Colors.orange
+                                      : null,
+                                ),
+                                tooltip: 'Gắn cờ câu hỏi này',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            currentQuestion['question'] ?? '',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 32),
+                          ...((currentQuestion['options'] as Map<String, dynamic>? ?? {})
+                              .entries
+                              .toList()
+                              .asMap()
+                              .entries
+                              .map((entry) {
+                            final optIndex = entry.key;
+                            final label = entry.value.key;
+                            final text = entry.value.value;
+                            final isFocused = optIndex == _focusedOptionIndex;
+
+                            return _buildOptionCard(
+                              question: currentQuestion,
+                              label: label,
+                              text: text,
+                              optionIndex: optIndex,
+                              isFocused: isFocused,
+                            );
+                          }).toList()),
+                          const Spacer(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              FilledButton.tonalIcon(
+                                onPressed: _currentIndex > 0
+                                    ? () => _changeQuestion(_currentIndex - 1)
+                                    : null,
+                                icon: const Icon(Icons.arrow_back),
+                                label: const Text('Câu trước'),
+                              ),
+                              if (_currentIndex < _questions.length - 1)
+                                FilledButton.icon(
+                                  onPressed: () => _changeQuestion(_currentIndex + 1),
+                                  icon: const Icon(Icons.arrow_forward),
+                                  label: const Text('Câu tiếp'),
+                                )
+                              else
+                                FilledButton.icon(
+                                  onPressed: _confirmSubmit,
+                                  icon: const Icon(Icons.check),
+                                  label: const Text('Nộp bài ngay'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),

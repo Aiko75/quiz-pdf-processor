@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import '../widgets/path_selector.dart';
 import '../widgets/log_console.dart';
 import '../services/backend_service.dart';
@@ -270,7 +271,64 @@ class _DigitizeScreenState extends State<DigitizeScreen> {
                             ],
                           ),
                           title: Text(f['name']),
-                          subtitle: f['message'].isNotEmpty ? Text(f['message'], style: const TextStyle(fontSize: 11, color: Colors.red)) : null,
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (f['message'].isNotEmpty)
+                                Text(f['message'], style: const TextStyle(fontSize: 11, color: Colors.red)),
+                              if (f['status'] == 'success') ...[
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        final baseName = p.basenameWithoutExtension(f['path']);
+                                        final path = p.join(_outputDir, '${baseName}_co_dap_an.docx');
+                                        Process.run('explorer.exe', [path]);
+                                      },
+                                      icon: const Icon(Icons.description, size: 14, color: Colors.green),
+                                      label: const Text('Mở bản đáp án', style: TextStyle(fontSize: 11)),
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(50, 30),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        final baseName = p.basenameWithoutExtension(f['path']);
+                                        final path = p.join(_outputDir, '${baseName}_de_lam.docx');
+                                        Process.run('explorer.exe', [path]);
+                                      },
+                                      icon: const Icon(Icons.description_outlined, size: 14, color: Colors.blue),
+                                      label: const Text('Mở bản đề làm', style: TextStyle(fontSize: 11)),
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(50, 30),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        final baseName = p.basenameWithoutExtension(f['path']);
+                                        final path = p.join(_outputDir, '${baseName}_co_dap_an.docx');
+                                        Process.run('explorer.exe', ['/select,', path]);
+                                      },
+                                      icon: const Icon(Icons.folder_open, size: 14, color: Colors.orange),
+                                      label: const Text('Hiển thị', style: TextStyle(fontSize: 11)),
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(50, 30),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

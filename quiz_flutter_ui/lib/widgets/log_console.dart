@@ -74,29 +74,31 @@ class _LogConsoleState extends State<LogConsole> {
           ),
           const Divider(),
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: widget.logs.length,
-              itemBuilder: (context, index) {
-                final log = widget.logs[index];
-                Color color = Theme.of(context).colorScheme.onSurface;
-                if (log.contains('[OK]')) color = Colors.green;
-                if (log.contains('[BỎ QUA]') || log.contains('[LƯU Ý]')) color = Colors.orange;
-                if (log.contains('[LỖI]') || log.contains('error')) color = Colors.red;
-                if (log.startsWith('===')) color = Theme.of(context).colorScheme.primary;
+            child: SelectionArea(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: widget.logs.length,
+                itemBuilder: (context, index) {
+                  final log = widget.logs[index];
+                  Color color = Theme.of(context).colorScheme.onSurface;
+                  if (log.contains('[OK]')) color = Colors.green;
+                  if (log.contains('[BỎ QUA]') || log.contains('[LƯU Ý]')) color = Colors.orange;
+                  if (log.contains('[LỖI]') || log.contains('error')) color = Colors.red;
+                  if (log.startsWith('===')) color = Theme.of(context).colorScheme.primary;
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    log,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 13,
-                      color: color,
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      log,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        color: color,
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ],

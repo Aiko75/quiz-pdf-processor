@@ -131,12 +131,13 @@ class SettingsService {
     final String? jsonStr = _prefs?.getString('key_mappings');
     if (jsonStr == null) {
       // Default mappings
+      // Note: key '4' is reserved for elimination mode, key '8' for scroll mode toggle
       return {
         'A': '1',
         'B': '2',
         'C': '3',
-        'D': '4',
-        'E': '5',
+        'D': '5',
+        'E': '8',
         'Flag': '6',
       };
     }
@@ -147,8 +148,8 @@ class SettingsService {
         'A': '1',
         'B': '2',
         'C': '3',
-        'D': '4',
-        'E': '5',
+        'D': '5',
+        'E': '8',
         'Flag': '6',
       };
     }

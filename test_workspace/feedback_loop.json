@@ -1,0 +1,22 @@
+{
+  "trac-nghiem-1-chu-nghia-xa-hoi-khoa-hoc-cnxhkh_co_dap_an.docx": [
+    {
+      "question_index": 15,
+      "type": "manual",
+      "message": "Câu hỏi bị lỗi phông chữ ở đáp án B",
+      "source": "manual"
+    },
+    {
+      "question_index": 68,
+      "type": "option_count",
+      "message": "Số lượng đáp án không hợp lệ: 2 (Yêu cầu từ 3 đến 5 đáp án)",
+      "source": "auto"
+    },
+    {
+      "question_index": 68,
+      "type": "manual",
+      "message": "Câu hỏi Đúng/Sai - chỉ có 2 đáp án (A. Sai, B. Đúng) là chủ đích, không phải lỗi. PDF gốc xác nhận.",
+      "source": "manual"
+    }
+  ]
+}
