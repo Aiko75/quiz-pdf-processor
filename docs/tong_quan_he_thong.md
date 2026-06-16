@@ -154,3 +154,8 @@ Hệ thống quản lý tài liệu trong một thư mục gọi là **Workspace
    - **Sửa đổi DOCX từ Feedback**: Script `scratch/fix_docx.py` vá lỗi cấu trúc tệp DOCX nguồn bằng cách đối chiếu nội dung từ PDF gốc, khôi phục đáp án trống, chèn thêm đáp án thiếu, xóa watermark nhiễu.
    - **Phím tắt tùy biến nâng cao**: Default mapping được cập nhật phù hợp thực tế (D=5, E=8). Thêm nút "Đặt lại mặc định" trong màn hình Cài đặt.
    - **Phím tắt bàn phím được cập nhật**: A=1, B=2, C=3, D=5, E=8, Flag=6. Phím `4` = Loại trừ đáp án, Phím `8` = Chuyển chế độ xem.
+7. **Dọn dẹp file DOCX tự động & Kiểm định nâng cao v1.6.0**:
+   - **Tự động dọn dẹp tệp tin DOCX khi xóa đề**: Bổ sung cơ chế quét tự động các thư mục Output (`generateOutputPath`, `digitizeOutputPath`, `exportsPath`) để xóa các file DOCX liên quan khi một đề thi (JSON) hoặc thư mục chứa đề bị xóa khỏi danh sách.
+   - **Vá lỗi và sửa 5 câu lỗi trong tệp DOCX nguồn**: Thực hiện vá lỗi cấu trúc các câu hỏi 38, 40, 59, 68, 77 và loại bỏ watermark dính ở Câu 1 trong tệp DOCX gốc bằng script v3 chuyên dụng, ghi nhận trực tiếp vào file mới để đảm bảo tính an toàn dữ liệu.
+   - **Nhận diện lỗi watermark trong câu hỏi**: Tích hợp kiểu lỗi mới `watermark_in_question` để tự động phát hiện và cảnh báo các chuỗi ký tự watermark bị nhúng trực tiếp trong nội dung câu hỏi đầu vào.
+   - **Cải tiến độ an toàn & Cập nhật UI**: Tích hợp các mounted guards cho BuildContext khi gọi thông báo lỗi trong Flutter UI.

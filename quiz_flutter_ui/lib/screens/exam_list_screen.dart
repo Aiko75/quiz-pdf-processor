@@ -545,6 +545,56 @@ class _InteractiveExamListState extends State<_InteractiveExamList> {
     }
   }
 
+  Future<void> _deleteAssociatedDocxFiles(String jsonPath) async {
+    try {
+      final jsonName = p.basename(jsonPath);
+      final jsonBase = p.basenameWithoutExtension(jsonName);
+
+      // Extract matching prefix by stripping _uuid8 if present
+      String matchPrefix = jsonBase;
+      final uuidRegex = RegExp(r'_([a-fA-F0-9]{8})$');
+      if (uuidRegex.hasMatch(jsonBase)) {
+        matchPrefix = jsonBase.replaceFirst(uuidRegex, '');
+      }
+
+      // Collect output directories to scan
+      final dirsToScan = <String>[];
+      if (_settings.generateOutputPath.isNotEmpty) {
+        dirsToScan.add(_settings.generateOutputPath);
+      }
+      if (_settings.digitizeOutputPath.isNotEmpty) {
+        dirsToScan.add(_settings.digitizeOutputPath);
+      }
+      if (_settings.exportsPath.isNotEmpty) {
+        dirsToScan.add(_settings.exportsPath);
+      }
+
+      final uniqueDirs = dirsToScan.toSet().toList();
+
+      for (final dirPath in uniqueDirs) {
+        final dir = Directory(dirPath);
+        if (await dir.exists()) {
+          await for (final file in dir.list()) {
+            if (file is File) {
+              final fName = p.basename(file.path);
+              try {
+                if (fName == '$matchPrefix.docx' ||
+                    fName == '${matchPrefix}_co_dap_an.docx' ||
+                    fName == '${matchPrefix}_de_lam.docx' ||
+                    fName == '${matchPrefix}_bao_cao_kiem_tra.docx' ||
+                    fName == '${matchPrefix}_cac_cau_loi.docx') {
+                  await file.delete();
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   void _deleteItem(Map<String, dynamic> item) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -573,12 +623,25 @@ class _InteractiveExamListState extends State<_InteractiveExamList> {
             ? item['path']
             : item['file_path'];
         if (item['type'] == 'folder') {
+          final dir = Directory(path);
+          if (await dir.exists()) {
+            try {
+              final entities = dir.listSync(recursive: true);
+              for (final entity in entities) {
+                if (entity is File && entity.path.endsWith('.json')) {
+                  await _deleteAssociatedDocxFiles(entity.path);
+                }
+              }
+            } catch (_) {}
+          }
           await Directory(path).delete(recursive: true);
         } else {
+          await _deleteAssociatedDocxFiles(path);
           await File(path).delete();
         }
         _loadExams();
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Lỗi khi xóa: $e')));

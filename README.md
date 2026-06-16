@@ -4,7 +4,7 @@
 
 Hệ thống hỗ trợ số hóa đề thi từ PDF/DOCX sang Word để in ấn, tạo các bài thi trực tuyến tương tác, tự động chấm điểm bài làm của học sinh, phục hồi phiên thi khi gặp sự cố và phân tích biểu đồ tiến độ học tập.
 
-> **Phiên bản hiện tại: v1.5.0** — Xem [CHANGELOG_v1.5.0.docx](docs/CHANGELOG_v1.5.0.docx) để biết các tính năng mới.
+> **Phiên bản hiện tại: v1.6.0** — Xem [CHANGELOG_v1.6.0.docx](docs/CHANGELOG_v1.6.0.docx) để biết các tính năng mới.
 
 ---
 
@@ -23,6 +23,7 @@ Hệ thống hỗ trợ số hóa đề thi từ PDF/DOCX sang Word để in ấ
   * Luồng kiểm định độc lập với quá trình số hóa, có thể chạy bất kỳ lúc nào.
   * Phát hiện 3 loại lỗi: số đáp án không hợp lệ, đáp án bị dính trong câu hỏi, đáp án trống nội dung.
   * **Feedback Loop**: Tự động ghi nhận lỗi vào `feedback_loop.json`, hỗ trợ cả báo lỗi thủ công.
+  * **Tự động dọn dẹp file Word** *(mới v1.6.0)*: Khi xóa đề thi hoặc thư mục đề thi, tự động dọn sạch các file DOCX tương ứng đã tạo trong các thư mục Output để giải phóng dung lượng.
 * **Phòng thi trực tuyến trực quan**:
   * Làm bài thi trực tiếp trên giao diện tương tác với bộ đếm ngược thời gian.
   * **Auto-Save & Phục hồi dở dang**: Tự động lưu tiến độ thi từng giây vào tệp `current_session.json` để phục hồi lại trạng thái thi khi ứng dụng bị tắt đột ngột.
@@ -53,10 +54,10 @@ Quiz_Processor/
 │   │   ├── main.dart        # Entrypoint ứng dụng Flutter
 │   │   ├── screens/         # Màn hình Số hóa, Phòng thi, Kết quả, Thống kê, Cài đặt
 │   │   └── services/        # BackendService, DatabaseService, SettingsService, v.v.
-│   └── pubspec.yaml         # Khai báo thư viện phụ thuộc của Dart/Flutter (v1.5.0+5)
+│   └── pubspec.yaml         # Khai báo thư viện phụ thuộc của Dart/Flutter (v1.6.0+6)
 │
 ├── docs/                    # Tài liệu kỹ thuật chi tiết của hệ thống
-│   ├── CHANGELOG_v1.5.0.docx  # Release notes phiên bản 1.5.0
+│   ├── CHANGELOG_v1.6.0.docx  # Release notes phiên bản 1.6.0
 │   ├── tong_quan_he_thong.md  # Kiến trúc tổng quan hệ thống
 │   ├── dac_ta_backend.md      # Đặc tả nhân xử lý Python
 │   ├── dac_ta_frontend.md     # Đặc tả giao diện Flutter
@@ -185,6 +186,7 @@ flutter build windows
 
 | Tài liệu | Nội dung |
 |----------|----------|
+| [CHANGELOG_v1.6.0.docx](docs/CHANGELOG_v1.6.0.docx) | Release notes đầy đủ phiên bản 1.6.0 |
 | [CHANGELOG_v1.5.0.docx](docs/CHANGELOG_v1.5.0.docx) | Release notes đầy đủ phiên bản 1.5.0 |
 | [tong_quan_he_thong.md](docs/tong_quan_he_thong.md) | Kiến trúc tổng quan, sơ đồ hệ thống, lịch sử nâng cấp |
 | [dac_ta_backend.md](docs/dac_ta_backend.md) | Đặc tả nhân xử lý Python, parsing, grading, validation, CLI |
