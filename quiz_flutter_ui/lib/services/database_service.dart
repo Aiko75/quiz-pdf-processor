@@ -1,6 +1,7 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
+import 'dart:convert';
 import 'settings_service.dart';
 
 class DatabaseService {
@@ -49,6 +50,51 @@ class DatabaseService {
         }
       },
     );
+    await _updateMissingFolders();
+  }
+
+  Future<void> _updateMissingFolders() async {
+    try {
+      final settings = await SettingsService.getInstance();
+      final examsPath = p.join(settings.workspacePath, 'exams');
+      final examsDir = Directory(examsPath);
+      if (!await examsDir.exists()) return;
+
+      final missing = await _db!.rawQuery(
+        "SELECT COUNT(*) as count FROM history WHERE folder IS NULL OR folder = ''"
+      );
+      if (missing.isEmpty || (missing.first['count'] as int) == 0) return;
+
+      final Map<String, String> examIdToFolder = {};
+      final entities = examsDir.listSync(recursive: true);
+      for (var entity in entities) {
+        if (entity is File && entity.path.endsWith('.json')) {
+          try {
+            final content = await entity.readAsString();
+            final data = jsonDecode(content);
+            final examId = data['id'];
+            if (examId != null) {
+              final relPath = p.relative(entity.path, from: examsPath);
+              final parts = p.split(relPath);
+              if (parts.length > 1) {
+                examIdToFolder[examId] = parts[0];
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (examIdToFolder.isNotEmpty) {
+        await _db!.transaction((txn) async {
+          for (var entry in examIdToFolder.entries) {
+            await txn.rawUpdate(
+              "UPDATE history SET folder = ? WHERE exam_id = ? AND (folder IS NULL OR folder = '')",
+              [entry.value, entry.key],
+            );
+          }
+        });
+      }
+    } catch (e) {}
   }
 
   Future<int> saveAttempt({

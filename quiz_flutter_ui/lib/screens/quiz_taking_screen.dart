@@ -49,6 +49,30 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
     _initQuestions();
   }
 
+  String _encrypt(String input) {
+    const String key = 'QuizProcessorSessionSecKey_2026';
+    List<int> bytes = utf8.encode(input);
+    List<int> result = List<int>.filled(bytes.length, 0);
+    for (int i = 0; i < bytes.length; i++) {
+      result[i] = bytes[i] ^ key.codeUnitAt(i % key.length);
+    }
+    return base64Encode(result);
+  }
+
+  String _decrypt(String base64input) {
+    try {
+      const String key = 'QuizProcessorSessionSecKey_2026';
+      List<int> bytes = base64Decode(base64input);
+      List<int> result = List<int>.filled(bytes.length, 0);
+      for (int i = 0; i < bytes.length; i++) {
+        result[i] = bytes[i] ^ key.codeUnitAt(i % key.length);
+      }
+      return utf8.decode(result);
+    } catch (e) {
+      return '';
+    }
+  }
+
   Future<void> _initQuestions() async {
     final settings = await SettingsService.getInstance();
     setState(() {
@@ -63,9 +87,13 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
     Map<String, dynamic>? savedState;
     if (await saveFile.exists()) {
       try {
-        savedState = jsonDecode(await saveFile.readAsString());
-        if (savedState?['exam_id'] != widget.examData['id']) {
-          savedState = null;
+        final encryptedContent = await saveFile.readAsString();
+        final decryptedContent = _decrypt(encryptedContent);
+        if (decryptedContent.isNotEmpty) {
+          savedState = jsonDecode(decryptedContent);
+          if (savedState?['exam_id'] != widget.examData['id']) {
+            savedState = null;
+          }
         }
       } catch (e) {
         savedState = null;
@@ -190,7 +218,9 @@ class _TakingExamScreenState extends State<TakingExamScreen> {
         'total_spent': _totalSecondsSpent,
         'timestamp': DateTime.now().toIso8601String(),
       };
-      await saveFile.writeAsString(jsonEncode(state));
+      final jsonStr = jsonEncode(state);
+      final encryptedStr = _encrypt(jsonStr);
+      await saveFile.writeAsString(encryptedStr);
     } catch (e) {}
   }
 

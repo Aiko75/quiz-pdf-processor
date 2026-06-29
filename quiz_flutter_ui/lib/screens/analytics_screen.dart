@@ -15,6 +15,29 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   List<Map<String, dynamic>> _folderStats = [];
   List<Map<String, dynamic>> _weakExams = [];
 
+  static const List<Color> _subjectColors = [
+    Color(0xFF2196F3), // Blue
+    Color(0xFF4CAF50), // Green
+    Color(0xFFFF9800), // Orange
+    Color(0xFFE91E63), // Pink
+    Color(0xFF9C27B0), // Purple
+    Color(0xFF00BCD4), // Cyan
+    Color(0xFFFFC107), // Amber
+    Color(0xFF3F51B5), // Indigo
+    Color(0xFF009688), // Teal
+    Color(0xFF8BC34A), // Light Green
+    Color(0xFFCDDC39), // Lime
+    Color(0xFFFF5722), // Deep Orange
+    Color(0xFF795548), // Brown
+    Color(0xFF607D8B), // Blue Grey
+    Color(0xFFD32F2F), // Red
+    Color(0xFF1565C0), // Medium Dark Blue
+    Color(0xFF2E7D32), // Medium Dark Green
+    Color(0xFFEF6C00), // Medium Dark Orange
+    Color(0xFFAD1457), // Medium Dark Pink
+    Color(0xFF6A1B9A), // Medium Dark Purple
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -77,14 +100,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     height: 300,
                     child: PieChart(
                       PieChartData(
-                        sections: _folderStats.map((f) {
+                        sections: List.generate(_folderStats.length, (index) {
+                          final f = _folderStats[index];
+                          final color = _subjectColors[index % _subjectColors.length];
                           return PieChartSectionData(
                             value: (f['attempts'] as int).toDouble(),
                             title: f['subject'],
                             radius: 100,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                            color: color,
+                            titleStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 4,
+                                  color: Colors.black54,
+                                  offset: Offset(1, 1),
+                                ),
+                              ],
+                            ),
                           );
-                        }).toList(),
+                        }),
                       ),
                     ),
                   ),

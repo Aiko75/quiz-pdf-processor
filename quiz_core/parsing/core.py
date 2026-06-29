@@ -359,17 +359,27 @@ def parse_questions(lines: List[LineData]) -> List[QuestionData]:
     questions = deduplicate_questions(questions)
     
     # Auto-indexing and Cleaning
-    final_questions = []
-    current_idx = 1
+    valid_questions = []
     for q in questions:
-        # Clean text again to remove all fragments
         q.question = normalize_question_text(q.question)
-        
-        # Validation: If question is too short or just a number, it's likely a page number (Image 3)
         if len(q.question) < 5 or q.question.isdigit():
             continue
+        
+        # Check if it has at least 2 options and all options are reasonably short (< 500 chars)
+        if len(q.options) >= 2 and all(len(opt.text) < 500 for opt in q.options):
+            valid_questions.append(q)
             
-        # Always use a consistent "Câu X: " prefix
+    # Calculate ratio of valid multiple-choice questions
+    total_potential = len([q for q in questions if len(normalize_question_text(q.question)) >= 5 and not normalize_question_text(q.question).isdigit()])
+    ratio = len(valid_questions) / total_potential if total_potential > 0 else 0.0
+    
+    # If the file is predominantly NOT multiple-choice, skip it by returning empty list
+    if ratio < 0.6:
+        return []
+        
+    final_questions = []
+    current_idx = 1
+    for q in valid_questions:
         q.question = f"Câu {current_idx}: {q.question}"
         final_questions.append(q)
         current_idx += 1

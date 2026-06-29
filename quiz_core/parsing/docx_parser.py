@@ -62,7 +62,23 @@ def parse_docx_questions(docx_path: Path) -> List[Dict[str, Any]]:
             current_q['question'] += " " + text
             
     if current_q: questions.append(current_q)
-    return questions
+    
+    # Filter questions
+    valid_questions = []
+    for q in questions:
+        q['question'] = normalize_question_text(q['question'])
+        if len(q['question']) < 5 or q['question'].isdigit():
+            continue
+        # Check if it has at least 2 options and all options are reasonably short (< 500 chars)
+        if len(q['options']) >= 2 and all(len(opt_text) < 500 for opt_text in q['options'].values()):
+            valid_questions.append(q)
+            
+    total_potential = len([q for q in questions if len(normalize_question_text(q['question'])) >= 5 and not normalize_question_text(q['question']).isdigit()])
+    ratio = len(valid_questions) / total_potential if total_potential > 0 else 0.0
+    if ratio < 0.6:
+        return []
+        
+    return valid_questions
 
 def parse_docx_questions_for_grading(docx_path: Path) -> List[QuizQuestionState]:
     doc = docx.Document(docx_path)
@@ -135,4 +151,20 @@ def parse_docx_questions_for_grading(docx_path: Path) -> List[QuizQuestionState]
     if current_q:
         finalize_current_q(current_q)
         questions.append(current_q)
-    return questions
+        
+    # Filter questions
+    valid_questions = []
+    for q in questions:
+        q.question = normalize_question_text(q.question)
+        if len(q.question) < 5 or q.question.isdigit():
+            continue
+        # Check if it has at least 2 options and all options are reasonably short (< 500 chars)
+        if len(q.options) >= 2 and all(len(opt.text) < 500 for opt in q.options.values()):
+            valid_questions.append(q)
+            
+    total_potential = len([q for q in questions if len(normalize_question_text(q.question)) >= 5 and not normalize_question_text(q.question).isdigit()])
+    ratio = len(valid_questions) / total_potential if total_potential > 0 else 0.0
+    if ratio < 0.6:
+        return []
+        
+    return valid_questions

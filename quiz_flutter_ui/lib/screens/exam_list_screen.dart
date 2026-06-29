@@ -86,11 +86,17 @@ class _InteractiveExamListState extends State<_InteractiveExamList> {
           try {
             final content = await entity.readAsString();
             final data = jsonDecode(content);
+            
+            final relativePath = p.relative(entity.path, from: _settings.examsPath);
+            final parts = p.split(relativePath);
+            final folderName = parts.length > 1 ? parts[0] : null;
+            
             items.add({
               'type': 'exam',
               'name': name,
               'file_path': entity.path,
               ...data,
+              'folder': folderName,
             });
           } catch (e) {}
         }
